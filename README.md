@@ -1,6 +1,6 @@
-# Link — End-to-End Encrypted Web Messenger
+# Link Me — End-to-End Encrypted Web Messenger
 
-Link is a browser-based messaging app built for our Computer Systems Security module. The central idea is simple: two people can message each other and the server never sees the content of any message. All encryption happens in the browser using the Web Crypto API. The backend exists only to route ciphertext and manage accounts — it is treated as a potential adversary in our threat model.
+Link Me is a browser-based messaging app built for our Computer Systems Security module. The central idea is simple: two people can message each other and the server never sees the content of any message. All encryption happens in the browser using the Web Crypto API. The backend exists only to route ciphertext and manage accounts and it is treated as a potential adversary in our threat model.
 
 ---
 
