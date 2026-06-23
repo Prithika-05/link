@@ -1,6 +1,6 @@
-# Link Me — End-to-End Encrypted Web Messenger
+# Link Me - End-to-End Encrypted Web Messenger
 
-Link Me is a browser-based messaging app built for our Computer Systems Security module. The central idea is simple: two people can message each other and the server never sees the content of any message. All encryption happens in the browser using the Web Crypto API. The backend exists only to route ciphertext and manage accounts and it is treated as a potential adversary in our threat model.
+Link Me is a browser-based messaging app built for our Computer Systems Security module. The central idea is simple: two people can message each other, and the server never sees the content of any message. All encryption happens in the browser using the Web Crypto API. The backend exists only to route ciphertext and manage accounts, and it is treated as a potential adversary in our threat model.
 
 ---
 
@@ -34,22 +34,22 @@ This is the per-message flow, step by step:
 ```
 Sender                                    Recipient
 ------                                    ---------
-1. Fetch recipient's public key
+1. Fetch the recipient's public key
    from their GitHub Pages URL
 
 2. Generate ephemeral ECDH key pair
    (new pair per message)
 
 3. ECDH(ephemeral private, recipient public)
-   → raw shared secret
+   - raw shared secret
 
 4. HKDF(shared secret, salt, "Link v1")
-   → 256-bit AES-GCM key
+   - 256-bit AES-GCM key
 
-5. Generate random 12-byte IV
+5. Generate a random 12-byte IV
 
 6. AES-GCM encrypt(plaintext, key, IV)
-   → ciphertext + auth tag
+   - ciphertext + auth tag
 
 7. Send to server:
    { ephemeralPublicKey, IV, ciphertext }
@@ -57,13 +57,13 @@ Sender                                    Recipient
 
                                           9. ECDH(recipient private,
                                              ephemeralPublicKey)
-                                             → same shared secret
+                                             - same shared secret
 
                                           10. HKDF(shared secret, salt, "Link v1")
-                                              → same AES-GCM key
+                                              - same AES-GCM key
 
                                           11. AES-GCM decrypt(ciphertext, key, IV)
-                                              → plaintext
+                                              - plaintext
 ```
 
 **Why ephemeral keys per message?**
@@ -96,8 +96,8 @@ It avoids trusting the server as a key directory. If the server hosted public ke
 **What we do NOT protect against (out of scope):**
 
 - **Endpoint compromise.** If the recipient's device or browser is compromised, an attacker can read decrypted messages. This is true of all E2EE systems.
-- **Key verification / TOFU.** We do not implement a safety number or fingerprint comparison mechanism. A user could point their Link profile at someone else's GitHub Pages URL. In a production system you would want out-of-band key verification.
-- **Metadata.** The server knows who is talking to whom, when, and how often. Only message content is hidden.
+- **Key verification / TOFU.** We do not implement a safety number or fingerprint comparison mechanism. A user could point their Link profile at someone else's GitHub Pages URL. In a production system, you would want out-of-band key verification.
+- **Metadata.** The server knows who is talking to whom, when, and how often. Only the message content is hidden.
 - **Denial of service.** Rate limiting is basic and not production-grade.
 - **GitHub Pages availability.** If a user's GitHub Pages site is down, their public key cannot be fetched.
 
@@ -173,6 +173,3 @@ link/
 Environment variables for the deployed backend and frontend follow the same structure as the local `.env` files above, set through each platform's dashboard.
 
 ---
-
-## AI
-Pramodh - https://claude.ai/share/c1981dfb-1b5b-4648-844e-b260218f5337
