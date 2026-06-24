@@ -2,7 +2,7 @@ function App() {
 
     return (
         <>
-            <p>Page working</p>
+            <p className="m-10">Page working</p>
         </>
     )
 }
