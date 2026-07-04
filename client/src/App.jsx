@@ -1,10 +1,14 @@
-function App() {
+import {BrowserRouter, Route, Routes} from 'react-router-dom'
+import LoginPage from './pages/LoginPage.jsx'
+import NotFoundPage from './pages/NotFoundPage'
 
+export default function App() {
     return (
-        <>
-            <p className="m-10">Page working</p>
-        </>
+        <BrowserRouter>
+            <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+        </BrowserRouter>
     )
 }
-
-export default App
