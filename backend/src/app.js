@@ -4,15 +4,18 @@ import Fastify from 'fastify';
 
 import { loggerConfig } from './plugins/logger.js';
 import { registerPlugins } from './plugins/index.js';
+import authRoutes from './modules/auth/auth.routes.js';
 
 const app = Fastify({
   logger: loggerConfig,
 });
 
-// Register all plugins
 await registerPlugins(app);
 
-// Health Check
+await app.register(authRoutes, {
+  prefix: '/api/auth',
+});
+
 app.get('/health', async () => {
   return {
     success: true,
@@ -25,9 +28,15 @@ app.get('/health', async () => {
 app.setErrorHandler((error, request, reply) => {
   request.log.error(error);
 
-  reply.status(error.statusCode || 500).send({
+  const statusCode = error.statusCode || 500;
+
+  reply.status(statusCode).send({
     success: false,
-    message: error.message || 'Internal Server Error',
+    error: error.name || 'InternalServerError',
+    message:
+      statusCode === 500
+        ? 'Internal Server Error'
+        : error.message,
   });
 });
 
