@@ -1,11 +1,16 @@
 // src/app.js
 
 import Fastify from 'fastify';
+
 import { loggerConfig } from './plugins/logger.js';
+import { registerPlugins } from './plugins/index.js';
 
 const app = Fastify({
   logger: loggerConfig,
 });
+
+// Register all plugins
+await registerPlugins(app);
 
 // Health Check
 app.get('/health', async () => {
