@@ -86,4 +86,29 @@ export class AuthService {
       },
     };
   }
+  async logout(token) {
+    const payload = this.tokenService.decodeToken(token);
+    console.log(payload);
+
+    if (!payload) {
+      const error = new Error('Invalid token.');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const expiresInSeconds = Math.max(
+      payload.exp - Math.floor(Date.now() / 1000),
+      0
+    );
+
+    await this.tokenService.blacklistToken(
+      payload.jti,
+      expiresInSeconds
+    );
+
+    return {
+      success: true,
+      message: 'Logged out successfully.',
+    };
+  }
 }
