@@ -14,21 +14,21 @@ export class TokenService {
     });
   }
 
-  async blacklistToken(token, expiresInSeconds) {
+   decodeToken(token) {
+    return this.jwt.decode(token);
+  }
+
+  async blacklistToken(jti, expiresInSeconds) {
     await this.redis.set(
-      `blacklist:${token}`,
-      'revoked',
-      {
-        EX: expiresInSeconds,
-      }
+      `blacklist:${jti}`,
+      "revoked",
+      "EX",
+      expiresInSeconds
     );
   }
 
-  async isBlacklisted(token) {
-    const exists = await this.redis.get(
-      `blacklist:${token}`
-    );
-
+  async isBlacklisted(jti) {
+    const exists = await this.redis.get(`blacklist:${jti}`);
     return exists !== null;
   }
 }
