@@ -1,11 +1,12 @@
 // src/modules/auth/auth.service.js
 
 import bcrypt from "bcrypt";
+import { TokenService } from "./auth.tokens.js";
 
 export class AuthService {
   constructor(fastify) {
     this.prisma = fastify.prisma;
-    this.jwt = fastify.jwt;
+    this.tokenService = new TokenService(fastify);
   }
 
   async register({ username, email, password }) {
@@ -69,20 +70,11 @@ export class AuthService {
 
     if (!validPassword) {
       const error = new Error("Invalid email or password.");
-      error.statusCode = 401;
+      error.statusCode =401;
       throw error;
     }
 
-    const token = this.jwt.sign(
-      {
-        sub: user.id,
-        email: user.email,
-        username: user.username,
-      },
-      {
-        expiresIn: "1h",
-      }
-    );
+    const token = this.tokenService.generateAccessToken(user);
 
     return {
       success: true,
