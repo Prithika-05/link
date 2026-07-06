@@ -6,6 +6,7 @@ import { loggerConfig } from './plugins/logger.js';
 import { registerPlugins } from './plugins/index.js';
 import authRoutes from './modules/auth/auth.routes.js';
 import userRoutes from './modules/users/users.routes.js';
+import keysRoutes from './modules/keys/keys.routes.js';
 
 const app = Fastify({
   logger: loggerConfig,
@@ -19,6 +20,10 @@ await app.register(authRoutes, {
 
 await app.register(userRoutes, {
   prefix: '/api/users',
+});
+
+await app.register(keysRoutes, {
+  prefix: '/api/keys',
 });
 
 

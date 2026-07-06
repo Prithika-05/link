@@ -58,9 +58,19 @@ export const loginSchema = {
   response: {
     200: {
       type: 'object',
+      required: ['success', 'token', 'user'],
       properties: {
         success: { type: 'boolean' },
         token: { type: 'string' },
+        user: {
+          type: 'object',
+          required: ['id', 'username', 'email'],
+          properties: {
+            id: { type: 'string' },
+            username: { type: 'string' },
+            email: { type: 'string', format: 'email' },
+          },
+        },
       },
     },
   },

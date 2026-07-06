@@ -88,7 +88,6 @@ export class AuthService {
   }
   async logout(token) {
     const payload = this.tokenService.decodeToken(token);
-    console.log(payload);
 
     if (!payload) {
       const error = new Error('Invalid token.');
