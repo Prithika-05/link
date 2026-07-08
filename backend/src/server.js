@@ -6,9 +6,15 @@ import { env } from './config/env.js';
 const startServer = async () => {
   try {
     await app.listen({
-      port: env.port,
-      host: '0.0.0.0',
-    });
+    port: env.port,
+    host: '0.0.0.0',
+  });
+
+  const { initializeSocket } = await import(
+    './realtime/socket.js'
+  );
+
+  initializeSocket(app);
 
     app.log.info(`Server running on port ${env.port}`);
   } catch (error) {
