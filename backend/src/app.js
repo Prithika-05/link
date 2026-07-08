@@ -7,6 +7,7 @@ import { registerPlugins } from './plugins/index.js';
 import authRoutes from './modules/auth/auth.routes.js';
 import userRoutes from './modules/users/users.routes.js';
 import keysRoutes from './modules/keys/keys.routes.js';
+import messageRoutes from './modules/messages/messages.routes.js';
 
 const app = Fastify({
   logger: loggerConfig,
@@ -26,6 +27,9 @@ await app.register(keysRoutes, {
   prefix: '/api/keys',
 });
 
+await app.register(messageRoutes, {
+  prefix: '/api/messages',
+});
 
 app.get('/health', async () => {
   return {
