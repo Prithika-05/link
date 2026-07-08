@@ -54,20 +54,27 @@ model PublicKey {
   @@index([userId])
 }
 
+enum MessageType {
+  TEXT
+  FILE
+}
+
 model Message {
   id String @id @default(cuid())
 
   senderId   String
   receiverId String
 
-  ciphertext         String
+  ciphertext         String @db.Text
   iv                 String
   authTag            String
-  ephemeralPublicKey String
+  ephemeralPublicKey String @db.Text
 
   status MessageStatus @default(SENT)
+  type   MessageType   @default(TEXT)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
