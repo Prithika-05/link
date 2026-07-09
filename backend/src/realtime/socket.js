@@ -2,6 +2,8 @@
 
 import { Server } from 'socket.io';
 import { registerSocketAuth } from './auth.js';
+import { registerMessageGateway } from './gateways/message.gateway.js';
+import { registerPresenceGateway } from './gateways/presence.gateway.js';
 
 let io;
 
@@ -26,8 +28,10 @@ export function initializeSocket(fastify) {
   });
 
   registerSocketAuth(io, fastify);
+  registerPresenceGateway(io, fastify);
+  registerMessageGateway(io, fastify);
 
-  fastify.log.info('✅ Socket.IO initialized');
+  fastify.log.info(' Socket.IO initialized');
 
   return io;
 }
