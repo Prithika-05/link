@@ -1,34 +1,50 @@
-import fp from "fastify-plugin";
-import "dotenv/config";
+// src/plugins/prisma.js
 
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+import fp from 'fastify-plugin';
+
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+
+import { env } from '../config/env.js';
 
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: env.databaseUrl,
 });
 
 const prisma = new PrismaClient({
   adapter,
+
   log:
-    process.env.NODE_ENV === "development"
-      ? ["query", "info", "warn", "error"]
-      : ["error"],
+    env.nodeEnv === 'development'
+      ? ['query', 'info', 'warn', 'error']
+      : ['error'],
 });
 
+/**
+ * Fastify Prisma plugin.
+ *
+ * @param {import('fastify').FastifyInstance} fastify
+ */
 async function prismaPlugin(fastify) {
-  await prisma.$connect();
+  try {
+    await prisma.$connect();
 
-  fastify.decorate("prisma", prisma);
+    fastify.decorate('prisma', prisma);
 
-  fastify.log.info("✅ Connected to PostgreSQL");
+    fastify.log.info('✅ Connected to PostgreSQL');
+  } catch (error) {
+    fastify.log.fatal(error);
 
-  fastify.addHook("onClose", async () => {
+    throw error;
+  }
+
+  fastify.addHook('onClose', async () => {
     await prisma.$disconnect();
-    fastify.log.info("📦 Prisma disconnected");
+
+    fastify.log.info('📦 PostgreSQL connection closed.');
   });
 }
 
 export default fp(prismaPlugin, {
-  name: "prisma",
+  name: 'prisma',
 });
