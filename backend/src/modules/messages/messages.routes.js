@@ -14,7 +14,13 @@ export default async function messageRoutes(fastify) {
     '/',
     {
       preHandler: [authenticate],
-      schema: sendMessageSchema,
+        schema: sendMessageSchema,
+        config: {
+        rateLimit: {
+          max: 120,
+          timeWindow: "1 minute",
+        },
+      },
     },
     async (request, reply) => {
       const result = await messageService.send(

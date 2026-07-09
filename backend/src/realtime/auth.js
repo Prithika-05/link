@@ -1,10 +1,18 @@
 // src/realtime/auth.js
 
 import { TokenService } from '../modules/auth/auth.tokens.js';
+import { allowConnection } from './socket.rate-limit.js';
 
 export function registerSocketAuth(io, fastify) {
   io.use(async (socket, next) => {
     try {
+      // Rate limit by IP address
+      const ip = socket.handshake.address;
+
+      if (!allowConnection(ip)) {
+        return next(new Error('Too many connections.'));
+      }
+
       const token = socket.handshake.auth.token;
 
       if (!token) {

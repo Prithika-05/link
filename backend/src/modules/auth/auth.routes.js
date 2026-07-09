@@ -15,7 +15,13 @@ export default async function authRoutes(fastify) {
     '/register',
     {
       schema: registerSchema,
+      config: {
+      rateLimit: {
+        max: 3,
+        timeWindow: "1 hour",
+      },
     },
+  },
     async (request, reply) => {
       const result = await authService.register(request.body);
 
@@ -28,6 +34,12 @@ export default async function authRoutes(fastify) {
     '/login',
     {
       schema: loginSchema,
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: '15 minutes',
+        },
+      },
     },
     async (request, reply) => {
       const result = await authService.login(request.body);
