@@ -7,6 +7,8 @@ import {
   conversationSchema,
 } from './messages.schema.js';
 
+
+
 export default async function messageRoutes(fastify) {
   const messageService = new MessageService(fastify);
 
@@ -39,10 +41,13 @@ export default async function messageRoutes(fastify) {
       schema: conversationSchema,
     },
     async (request) => {
+      const { page = 1, limit = 50 } = request.query;
       return messageService.conversation(
-        request.user.sub,
-        request.params.userId
-      );
+      request.user.sub,
+      request.params.userId,
+      Number(page),
+      Number(limit)
+    );
     }
   );
 }
