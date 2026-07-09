@@ -3,40 +3,74 @@
 import app from './app.js';
 import { env } from './config/env.js';
 
-const startServer = async () => {
+import { initializeSocket } from './realtime/socket.js';
+import { closeRedisAdapter } from './realtime/redis.adapter.js';
+
+let shuttingDown = false;
+
+
+async function startServer() {
   try {
     await app.listen({
-    port: env.port,
-    host: '0.0.0.0',
-  });
+      port: env.port,
+      host: '0.0.0.0',
+    });
 
-  const { initializeSocket } = await import(
-    './realtime/socket.js'
-  );
+    await initializeSocket(app);
 
-  await initializeSocket(app);
-
-    app.log.info(`Server running on port ${env.port}`);
+    app.log.info('====================================');
+    app.log.info('Secure Chat Backend Started');
+    app.log.info(`Environment : ${env.nodeEnv}`);
+    app.log.info(`Port        : ${env.port}`);
+    app.log.info('====================================');
   } catch (error) {
-    app.log.error(error);
+    app.log.fatal(error);
+
     process.exit(1);
   }
-};
+}
 
-const shutdown = async (signal) => {
-  app.log.info(`${signal} received. Shutting down gracefully...`);
+async function shutdown(signal) {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown = true;
+
+  app.log.info(`${signal} received. Shutting down...`);
 
   try {
+    await closeRedisAdapter();
+
     await app.close();
-    app.log.info('Server closed successfully.');
+
+    app.log.info('✅ Server stopped successfully.');
+
     process.exit(0);
   } catch (error) {
-    app.log.error(error);
+    app.log.fatal(error);
+
     process.exit(1);
   }
-};
+}
+
 
 process.on('SIGINT', () => shutdown('SIGINT'));
+
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-startServer();
+
+process.on('unhandledRejection', (reason) => {
+  app.log.fatal(reason);
+
+  shutdown('UNHANDLED_REJECTION');
+});
+
+
+process.on('uncaughtException', (error) => {
+  app.log.fatal(error);
+
+  shutdown('UNCAUGHT_EXCEPTION');
+});
+
+await startServer();
