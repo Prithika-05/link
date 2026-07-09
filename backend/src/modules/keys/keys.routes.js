@@ -14,8 +14,14 @@ export default async function keysRoutes(fastify) {
     '/',
     {
       preHandler: [authenticate],
-      schema: uploadKeySchema,
-    },
+        schema: uploadKeySchema,
+        config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: "1 minute",
+        },
+      },
+    }, 
     async (request, reply) => {
       const result = await keysService.upload(
         request.user.sub,
