@@ -48,4 +48,17 @@ export class MessageService {
       messages,
     };
   }
+
+  async markDelivered(messageId) {
+    const message = await this.prisma.message.update({
+      where: {
+        id: messageId,
+      },
+      data: {
+        status: 'DELIVERED',
+      },
+    });
+
+    return message;
+  }
 }
