@@ -2,16 +2,32 @@
 
 import corsPlugin from './cors.js';
 import helmetPlugin from './helmet.js';
+
 import prismaPlugin from './prisma.js';
+
 import jwtPlugin from './jwt.js';
+
 import redisPlugin from './redis.js';
+
 import rateLimitPlugin from './rate-limit.js';
 
+const plugins = [
+
+  corsPlugin,
+  helmetPlugin,
+  prismaPlugin,
+  jwtPlugin,
+  redisPlugin,
+  rateLimitPlugin,
+];
+
+/**
+ * Register every application plugin.
+ *
+ * @param {import('fastify').FastifyInstance} app
+ */
 export async function registerPlugins(app) {
-  await app.register(corsPlugin);
-  await app.register(helmetPlugin);
-  await app.register(prismaPlugin);
-  await app.register(jwtPlugin);
-  await app.register(redisPlugin);
-  await app.register(rateLimitPlugin);
+  for (const plugin of plugins) {
+    await app.register(plugin);
+  }
 }
