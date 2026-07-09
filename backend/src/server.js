@@ -14,7 +14,7 @@ const startServer = async () => {
     './realtime/socket.js'
   );
 
-  initializeSocket(app);
+  await initializeSocket(app);
 
     app.log.info(`Server running on port ${env.port}`);
   } catch (error) {

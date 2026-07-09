@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import { registerSocketAuth } from './auth.js';
 import { registerMessageGateway } from './gateways/message.gateway.js';
 import { registerPresenceGateway } from './gateways/presence.gateway.js';
+import { setupRedisAdapter } from './redis.adapter.js';
 
 let io;
 
@@ -11,7 +12,7 @@ let io;
  * Initialize the Socket.IO server.
  * @param {import('fastify').FastifyInstance} fastify
  */
-export function initializeSocket(fastify) {
+export async function initializeSocket(fastify) {
   io = new Server(fastify.server, {
     cors: {
       origin:
@@ -27,11 +28,13 @@ export function initializeSocket(fastify) {
     transports: ['websocket'],
   });
 
+  await setupRedisAdapter(io, fastify.log);
+
   registerSocketAuth(io, fastify);
   registerPresenceGateway(io, fastify);
   registerMessageGateway(io, fastify);
 
-  fastify.log.info(' Socket.IO initialized');
+  fastify.log.info('Socket.IO initialized');
 
   return io;
 }
