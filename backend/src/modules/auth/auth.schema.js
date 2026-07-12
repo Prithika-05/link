@@ -38,6 +38,57 @@ const userSchema = {
   },
 };
 
+const sessionSchema = {
+  type: 'object',
+
+  required: [
+    'id',
+    'userId',
+    'lastSeenAt',
+    'createdAt',
+  ],
+
+  properties: {
+    id: {
+      type: 'string',
+    },
+
+    userId: {
+      type: 'string',
+    },
+
+    deviceName: {
+      type: ['string', 'null'],
+    },
+
+    platform: {
+      type: ['string', 'null'],
+    },
+
+    browser: {
+      type: ['string', 'null'],
+    },
+
+    ipAddress: {
+      type: ['string', 'null'],
+    },
+
+    userAgent: {
+      type: ['string', 'null'],
+    },
+
+    lastSeenAt: {
+      type: 'string',
+      format: 'date-time',
+    },
+
+    createdAt: {
+      type: 'string',
+      format: 'date-time',
+    },
+  },
+};
+
 /* -------------------------------------------------------------------------- */
 /*                                Register                                    */
 /* -------------------------------------------------------------------------- */
@@ -136,6 +187,18 @@ export const loginSchema = {
         minLength: 8,
         maxLength: 128,
       },
+
+      deviceName: {
+        type: 'string',
+      },
+
+      platform: {
+        type: 'string',
+      },
+
+      browser: {
+        type: 'string',
+      },
     },
   },
 
@@ -202,6 +265,18 @@ export const refreshSchema = {
 
     properties: {
       refreshToken: {
+        type: 'string',
+      },
+
+      deviceName: {
+        type: 'string',
+      },
+
+      platform: {
+        type: 'string',
+      },
+
+      browser: {
         type: 'string',
       },
     },
@@ -281,6 +356,119 @@ export const logoutSchema = {
       },
     },
   },
+
+  response: {
+    200: {
+      type: 'object',
+
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
+
+      properties: {
+        success: {
+          type: 'boolean',
+        },
+
+        message: {
+          type: 'string',
+        },
+
+        data: {
+          type: 'null',
+        },
+      },
+    },
+  },
+};
+
+/* -------------------------------------------------------------------------- */
+/*                            Device Sessions                                 */
+/* -------------------------------------------------------------------------- */
+
+export const sessionsSchema = {
+  summary: 'Get active device sessions',
+
+  tags: ['Authentication'],
+
+  response: {
+    200: {
+      type: 'object',
+
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
+
+      properties: {
+        success: {
+          type: 'boolean',
+        },
+
+        message: {
+          type: 'string',
+        },
+
+        data: {
+          type: 'array',
+          items: sessionSchema,
+        },
+      },
+    },
+  },
+};
+
+export const revokeSessionSchema = {
+  summary: 'Revoke a device session',
+
+  tags: ['Authentication'],
+
+  params: {
+    type: 'object',
+
+    required: ['sessionId'],
+
+    properties: {
+      sessionId: {
+        type: 'string',
+      },
+    },
+  },
+
+  response: {
+    200: {
+      type: 'object',
+
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
+
+      properties: {
+        success: {
+          type: 'boolean',
+        },
+
+        message: {
+          type: 'string',
+        },
+
+        data: {
+          type: 'null',
+        },
+      },
+    },
+  },
+};
+
+export const revokeAllSessionsSchema = {
+  summary: 'Revoke all device sessions',
+
+  tags: ['Authentication'],
 
   response: {
     200: {

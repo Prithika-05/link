@@ -9,6 +9,7 @@ import {
 
 import { ConflictError } from '../../errors/ConflictError.js';
 import { AuthenticationError } from '../../errors/AuthenticationError.js';
+import { NotFoundError } from '../../errors/NotFoundError.js';
 
 import { AuditService } from '../audit/audit.service.js';
 import { SecurityService } from '../security/security.service.js';
@@ -89,7 +90,9 @@ export class AuthService {
   /**
    * Authenticate user.
    */
-  async login({ email, password }) {
+  async login(credentials, session = {}) {
+    const { email, password } = credentials;
+
     const user =
       await this.prisma.user.findUnique({
         where: {
@@ -101,6 +104,7 @@ export class AuthService {
       await this.securityService.log({
         event: SECURITY_EVENT.FAILED_LOGIN,
         severity: SECURITY_SEVERITY.MEDIUM,
+        ipAddress: session.ipAddress,
       });
 
       throw new AuthenticationError(
@@ -119,6 +123,10 @@ export class AuthService {
         userId: user.id,
         event: SECURITY_EVENT.FAILED_LOGIN,
         severity: SECURITY_SEVERITY.MEDIUM,
+        ipAddress: session.ipAddress,
+        metadata: {
+          userAgent: session.userAgent,
+        },
       });
 
       throw new AuthenticationError(
@@ -133,12 +141,15 @@ export class AuthService {
 
     const refreshToken =
       await this.tokenService.generateRefreshToken(
-        user
+        user,
+        session
       );
 
     await this.auditService.log({
       userId: user.id,
       action: AUDIT_ACTION.LOGIN,
+      ipAddress: session.ipAddress,
+      userAgent: session.userAgent,
     });
 
     return {
@@ -154,9 +165,12 @@ export class AuthService {
   }
 
   /**
-   * Refresh an expired access token.
+   * Refresh tokens.
    */
-  async refresh(refreshToken) {
+  async refresh(
+    refreshToken,
+    session = {}
+  ) {
     const payload =
       await this.tokenService.verifyRefreshToken(
         refreshToken
@@ -175,23 +189,23 @@ export class AuthService {
       );
     }
 
-    // Rotate refresh token
     await this.tokenService.revokeRefreshToken(
       payload.jti
     );
 
-    const newAccessToken =
+    const accessToken =
       this.tokenService.generateAccessToken(
         user
       );
 
     const newRefreshToken =
       await this.tokenService.generateRefreshToken(
-        user
+        user,
+        session
       );
 
     return {
-      accessToken: newAccessToken,
+      accessToken,
       refreshToken: newRefreshToken,
     };
   }
@@ -199,7 +213,10 @@ export class AuthService {
   /**
    * Logout current session.
    */
-  async logout(accessToken, refreshToken = null) {
+  async logout(
+    accessToken,
+    refreshToken = null
+  ) {
     const payload =
       this.tokenService.decodeToken(
         accessToken
@@ -240,6 +257,65 @@ export class AuthService {
 
     return {
       message: 'Logged out successfully.',
+    };
+  }
+
+  /**
+   * List active device sessions.
+   */
+  async getSessions(userId) {
+    return this.tokenService.getDeviceSessions(
+      userId
+    );
+  }
+
+  /**
+   * Revoke a single device session.
+   */
+  async revokeSession(
+    userId,
+    sessionId
+  ) {
+    const session =
+      await this.prisma.deviceSession.findUnique({
+        where: {
+          id: sessionId,
+        },
+      });
+
+    if (!session) {
+      throw new NotFoundError(
+        'Session not found.'
+      );
+    }
+
+    if (session.userId !== userId) {
+      throw new AuthenticationError(
+        'Unauthorized.'
+      );
+    }
+
+    await this.tokenService.revokeDeviceSession(
+      sessionId
+    );
+
+    return {
+      message:
+        'Device session revoked successfully.',
+    };
+  }
+
+  /**
+   * Revoke all active sessions.
+   */
+  async revokeAllSessions(userId) {
+    await this.tokenService.revokeAllRefreshTokens(
+      userId
+    );
+
+    return {
+      message:
+        'All device sessions revoked successfully.',
     };
   }
 }

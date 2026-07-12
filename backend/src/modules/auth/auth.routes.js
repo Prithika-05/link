@@ -7,6 +7,9 @@ import {
   loginSchema,
   refreshSchema,
   logoutSchema,
+  sessionsSchema,
+  revokeSessionSchema,
+  revokeAllSessionsSchema,
 } from './auth.schema.js';
 
 import { authenticate } from '../../middlewares/auth.middleware.js';
@@ -14,11 +17,13 @@ import { authenticate } from '../../middlewares/auth.middleware.js';
 export default async function authRoutes(fastify) {
   const controller = new AuthController(fastify);
 
+  /**
+   * Register
+   */
   fastify.post(
     '/register',
     {
       schema: registerSchema,
-
       config: {
         rateLimit: {
           max: 3,
@@ -29,11 +34,13 @@ export default async function authRoutes(fastify) {
     controller.register
   );
 
+  /**
+   * Login
+   */
   fastify.post(
     '/login',
     {
       schema: loginSchema,
-
       config: {
         rateLimit: {
           max: 5,
@@ -44,11 +51,13 @@ export default async function authRoutes(fastify) {
     controller.login
   );
 
+  /**
+   * Refresh tokens
+   */
   fastify.post(
     '/refresh',
     {
       schema: refreshSchema,
-
       config: {
         rateLimit: {
           max: 20,
@@ -59,13 +68,14 @@ export default async function authRoutes(fastify) {
     controller.refresh
   );
 
+  /**
+   * Logout current session
+   */
   fastify.post(
     '/logout',
     {
       schema: logoutSchema,
-
       preHandler: [authenticate],
-
       config: {
         rateLimit: {
           max: 20,
@@ -74,5 +84,41 @@ export default async function authRoutes(fastify) {
       },
     },
     controller.logout
+  );
+
+  /**
+   * List active device sessions
+   */
+  fastify.get(
+    '/sessions',
+    {
+      schema: sessionsSchema,
+      preHandler: [authenticate],
+    },
+    controller.getSessions
+  );
+
+  /**
+   * Revoke one device session
+   */
+  fastify.delete(
+    '/sessions/:sessionId',
+    {
+      schema: revokeSessionSchema,
+      preHandler: [authenticate],
+    },
+    controller.revokeSession
+  );
+
+  /**
+   * Revoke all device sessions
+   */
+  fastify.delete(
+    '/sessions',
+    {
+      schema: revokeAllSessionsSchema,
+      preHandler: [authenticate],
+    },
+    controller.revokeAllSessions
   );
 }

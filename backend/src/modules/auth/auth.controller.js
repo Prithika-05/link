@@ -4,11 +4,28 @@ import { AuthService } from './auth.service.js';
 import { successResponse } from '../../utils/response.js';
 
 export class AuthController {
-
   constructor(fastify) {
     this.authService = new AuthService(fastify);
   }
 
+  /**
+   * Build session metadata from the request.
+   */
+  getSessionInfo(request) {
+    return {
+      ipAddress: request.ip,
+      userAgent: request.headers['user-agent'] ?? null,
+
+      // Optional values supplied by the frontend
+      deviceName: request.body?.deviceName ?? null,
+      platform: request.body?.platform ?? null,
+      browser: request.body?.browser ?? null,
+    };
+  }
+
+  /**
+   * Register
+   */
   register = async (request, reply) => {
     const result = await this.authService.register(
       request.body
@@ -22,10 +39,15 @@ export class AuthController {
     );
   };
 
-
+  /**
+   * Login
+   */
   login = async (request, reply) => {
     const result =
-      await this.authService.login(request.body);
+      await this.authService.login(
+        request.body,
+        this.getSessionInfo(request)
+      );
 
     return successResponse(
       reply,
@@ -34,12 +56,16 @@ export class AuthController {
     );
   };
 
+  /**
+   * Refresh tokens
+   */
   refresh = async (request, reply) => {
     const { refreshToken } = request.body;
 
     const result =
       await this.authService.refresh(
-        refreshToken
+        refreshToken,
+        this.getSessionInfo(request)
       );
 
     return successResponse(
@@ -49,7 +75,9 @@ export class AuthController {
     );
   };
 
-
+  /**
+   * Logout current session
+   */
   logout = async (request, reply) => {
     const authHeader =
       request.headers.authorization;
@@ -70,6 +98,61 @@ export class AuthController {
       reply,
       null,
       'Logged out successfully.'
+    );
+  };
+
+  /**
+   * List all active device sessions
+   */
+  getSessions = async (request, reply) => {
+    const sessions =
+      await this.authService.getSessions(
+        request.user.sub
+      );
+
+    return successResponse(
+      reply,
+      sessions,
+      'Device sessions retrieved successfully.'
+    );
+  };
+
+  /**
+   * Revoke one device session
+   */
+  revokeSession = async (
+    request,
+    reply
+  ) => {
+    const result =
+      await this.authService.revokeSession(
+        request.user.sub,
+        request.params.sessionId
+      );
+
+    return successResponse(
+      reply,
+      null,
+      result.message
+    );
+  };
+
+  /**
+   * Revoke all device sessions
+   */
+  revokeAllSessions = async (
+    request,
+    reply
+  ) => {
+    const result =
+      await this.authService.revokeAllSessions(
+        request.user.sub
+      );
+
+    return successResponse(
+      reply,
+      null,
+      result.message
     );
   };
 }
