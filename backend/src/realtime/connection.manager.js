@@ -2,16 +2,10 @@
 
 class ConnectionManager {
   constructor() {
-    /**
-     * Map<
-     *   userId,
-     *   Set<Socket>
-     * >
-     */
     this.connections = new Map();
   }
 
-  add(userId, socket) {
+  addConnection(userId, socket) {
     if (!this.connections.has(userId)) {
       this.connections.set(userId, new Set());
     }
@@ -19,10 +13,12 @@ class ConnectionManager {
     this.connections.get(userId).add(socket);
   }
 
-  remove(userId, socket) {
+  removeConnection(userId, socket) {
     const sockets = this.connections.get(userId);
 
-    if (!sockets) return;
+    if (!sockets) {
+      return;
+    }
 
     sockets.delete(socket);
 
@@ -31,11 +27,11 @@ class ConnectionManager {
     }
   }
 
-  get(userId) {
-    return this.connections.get(userId) || new Set();
+  getSockets(userId) {
+    return this.connections.get(userId) ?? new Set();
   }
 
-  has(userId) {
+  isConnected(userId) {
     return this.connections.has(userId);
   }
 
@@ -43,13 +39,24 @@ class ConnectionManager {
     return [...this.connections.keys()];
   }
 
-  emit(userId, event, payload) {
-    const sockets = this.get(userId);
+  getSocketCount(userId) {
+    return this.getSockets(userId).size;
+  }
 
-    for (const socket of sockets) {
+  emit(userId, event, payload) {
+    for (const socket of this.getSockets(userId)) {
       socket.emit(event, payload);
+    }
+  }
+
+  emitToAll(event, payload) {
+    for (const sockets of this.connections.values()) {
+      for (const socket of sockets) {
+        socket.emit(event, payload);
+      }
     }
   }
 }
 
-export const connectionManager = new ConnectionManager();
+export const connectionManager =
+  new ConnectionManager();

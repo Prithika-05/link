@@ -1,50 +1,80 @@
-// src/realtime/message.gateway.js
+// src/realtime/gateways/message.gateway.js
 
 import { EVENTS } from '../events.js';
 import { connectionManager } from '../connection.manager.js';
+
 import { MessageService } from '../../modules/messages/messages.service.js';
 
-export function registerMessageGateway( io, fastify) {
+import {
+  MESSAGE_STATUS,
+} from '../../utils/constants.js';
+
+export function registerMessageGateway(io, fastify) {
   const messageService = new MessageService(fastify);
 
   io.on('connection', (socket) => {
-    socket.on(EVENTS.MESSAGE_SEND, async (payload, callback) => {
-      try {
-        const senderId = socket.data.user.sub;
+    socket.on(
+      EVENTS.MESSAGE_SEND,
+      async (payload, callback) => {
+        try {
+          const senderId =
+            socket.data.user.sub;
+          const message =
+            await messageService.send(
+              senderId,
+              payload
+            );
+          if (typeof callback === 'function') {
+            callback({
+              success: true,
 
-        const result = await messageService.send(senderId, payload);
+              messageId: message.id,
 
-        if (callback) {
-          callback({
-            success: true,
-            messageId: result.messageId,
-          });
-        }
+              status: MESSAGE_STATUS.SENT,
 
-        connectionManager.emit(
-            payload.receiverId,
-            EVENTS.MESSAGE_RECEIVE,
+              timestamp:
+                message.createdAt,
+            });
+          }
+          if (
+            connectionManager.isConnected(
+              payload.receiverId
+            )
+          ) {
+            connectionManager.emit(
+              payload.receiverId,
+
+              EVENTS.MESSAGE_RECEIVE,
+
+              message
+            );
+          }
+
+          fastify.log.debug(
             {
-                messageId: result.messageId,
-                senderId,
-                receiverId: payload.receiverId,
-                ciphertext: payload.ciphertext,
-                iv: payload.iv,
-                authTag: payload.authTag,
-                ephemeralPublicKey: payload.ephemeralPublicKey,
-                createdAt: new Date().toISOString()
-            }
-        );
-      } catch (error) {
-        if (callback) {
-          callback({
-            success: false,
-            message: error.message,
-          });
-        }
+              messageId: message.id,
+              senderId,
+              receiverId:
+                payload.receiverId,
+            },
+            'Encrypted message sent.'
+          );
+        } catch (error) {
+          fastify.log.error(error);
 
-        fastify.log.error(error);
+          if (
+            typeof callback ===
+            'function'
+          ) {
+            callback({
+              success: false,
+
+              message:
+                error.message,
+            });
+          }
+        }
       }
-    });
+    );
   });
 }

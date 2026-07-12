@@ -1,23 +1,46 @@
+// src/realtime/socket.rate-limit.js
+
 const attempts = new Map();
 
-export function allowConnection(ip) {
+const MAX_ATTEMPTS = 30;
+
+const WINDOW_MS = 60 * 1000;
+
+export function allowConnection(ipAddress) {
   const now = Date.now();
 
-  const minute = 60 * 1000;
+  const previousAttempts =
+    attempts.get(ipAddress) ?? [];
 
-  const current = attempts.get(ip) || [];
+  const recentAttempts =
+    previousAttempts.filter(
+      (timestamp) => now - timestamp < WINDOW_MS
+    );
 
-  const recent = current.filter(
-    (time) => now - time < minute
-  );
-
-  if (recent.length >= 30) {
+  if (recentAttempts.length >= MAX_ATTEMPTS) {
+    attempts.set(ipAddress, recentAttempts);
     return false;
   }
 
-  recent.push(now);
+  recentAttempts.push(now);
 
-  attempts.set(ip, recent);
+  attempts.set(ipAddress, recentAttempts);
 
   return true;
+}
+
+export function cleanupAttempts() {
+  const now = Date.now();
+
+  for (const [ipAddress, timestamps] of attempts) {
+    const recentAttempts = timestamps.filter(
+      (timestamp) => now - timestamp < WINDOW_MS
+    );
+
+    if (recentAttempts.length === 0) {
+      attempts.delete(ipAddress);
+    } else {
+      attempts.set(ipAddress, recentAttempts);
+    }
+  }
 }
