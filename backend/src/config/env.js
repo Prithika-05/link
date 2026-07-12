@@ -1,5 +1,13 @@
 // src/config/env.js
 
+/**
+ * ---------------------------------------------------------
+ * Environment Configuration
+ * ---------------------------------------------------------
+ * Loads and validates all required environment variables.
+ * ---------------------------------------------------------
+ */
+
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -30,6 +38,10 @@ for (const variable of requiredEnvVars) {
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/*                               NODE ENV                                     */
+/* -------------------------------------------------------------------------- */
+
 const allowedNodeEnvs = [
   'development',
   'test',
@@ -42,12 +54,59 @@ if (!allowedNodeEnvs.includes(process.env.NODE_ENV)) {
   );
 }
 
-const corsOrigins =
-  process.env.CORS_ORIGINS.split(',')
-    .map(origin => origin.trim())
-    .filter(Boolean);
+/* -------------------------------------------------------------------------- */
+/*                              PORT VALIDATION                               */
+/* -------------------------------------------------------------------------- */
 
-export const env = {
+const port = Number.parseInt(process.env.PORT, 10);
+
+if (Number.isNaN(port) || port <= 0 || port > 65535) {
+  throw new Error('Invalid PORT.');
+}
+
+/* -------------------------------------------------------------------------- */
+/*                          BCRYPT VALIDATION                                 */
+/* -------------------------------------------------------------------------- */
+
+const bcryptRounds = Number.parseInt(
+  process.env.BCRYPT_ROUNDS,
+  10
+);
+
+if (
+  Number.isNaN(bcryptRounds) ||
+  bcryptRounds < 10 ||
+  bcryptRounds > 15
+) {
+  throw new Error(
+    'BCRYPT_ROUNDS must be between 10 and 15.'
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                          JWT SECRET VALIDATION                             */
+/* -------------------------------------------------------------------------- */
+
+if (process.env.JWT_SECRET.length < 32) {
+  throw new Error(
+    'JWT_SECRET must contain at least 32 characters.'
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               CORS ORIGINS                                */
+/* -------------------------------------------------------------------------- */
+
+const corsOrigins = process.env.CORS_ORIGINS
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+/* -------------------------------------------------------------------------- */
+/*                                ENV EXPORT                                  */
+/* -------------------------------------------------------------------------- */
+
+export const env = Object.freeze({
   nodeEnv: process.env.NODE_ENV,
 
   isDevelopment:
@@ -56,39 +115,29 @@ export const env = {
   isProduction:
     process.env.NODE_ENV === 'production',
 
-  port: Number.parseInt(
-    process.env.PORT,
-    10
-  ),
+  host: process.env.HOST ?? '0.0.0.0',
 
-  databaseUrl:
-    process.env.DATABASE_URL,
+  port,
 
-  redisUrl:
-    process.env.REDIS_URL,
+  databaseUrl: process.env.DATABASE_URL.trim(),
 
-  jwtSecret:
-    process.env.JWT_SECRET,
+  redisUrl: process.env.REDIS_URL.trim(),
+
+  jwtSecret: process.env.JWT_SECRET.trim(),
 
   jwtAccessExpiresIn:
-    process.env.JWT_ACCESS_EXPIRES_IN,
+    process.env.JWT_ACCESS_EXPIRES_IN.trim(),
 
   jwtRefreshExpiresIn:
-    process.env.JWT_REFRESH_EXPIRES_IN,
+    process.env.JWT_REFRESH_EXPIRES_IN.trim(),
 
-  bcryptRounds:
-    Number.parseInt(
-      process.env.BCRYPT_ROUNDS,
-      10
-    ),
+  bcryptRounds,
 
   corsOrigins,
 
   logLevel:
     process.env.LOG_LEVEL ??
-    (
-      process.env.NODE_ENV === 'production'
-        ? 'info'
-        : 'debug'
-    ),
-};
+    (process.env.NODE_ENV === 'production'
+      ? 'info'
+      : 'debug'),
+});

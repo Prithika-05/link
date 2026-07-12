@@ -2,7 +2,10 @@
 
 import { TokenService } from './auth.tokens.js';
 
-import { hashPassword, verifyPassword } from '../../utils/password.js';
+import {
+  hashPassword,
+  verifyPassword,
+} from '../../utils/password.js';
 
 import { ConflictError } from '../../errors/ConflictError.js';
 import { AuthenticationError } from '../../errors/AuthenticationError.js';
@@ -27,13 +30,13 @@ export class AuthService {
     this.securityService = new SecurityService(fastify);
   }
 
-
+  /**
+   * Register a new user.
+   */
   async register({ username, email, password }) {
     return this.prisma.$transaction(async (tx) => {
       const existingEmail = await tx.user.findUnique({
-        where: {
-          email,
-        },
+        where: { email },
       });
 
       if (existingEmail) {
@@ -44,9 +47,7 @@ export class AuthService {
 
       const existingUsername =
         await tx.user.findUnique({
-          where: {
-            username,
-          },
+          where: { username },
         });
 
       if (existingUsername) {
@@ -78,16 +79,23 @@ export class AuthService {
         action: AUDIT_ACTION.REGISTER,
       });
 
-      return user;
+      return {
+        message: 'User registered successfully.',
+        user,
+      };
     });
   }
 
+  /**
+   * Authenticate user.
+   */
   async login({ email, password }) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        email,
-      },
-    });
+    const user =
+      await this.prisma.user.findUnique({
+        where: {
+          email,
+        },
+      });
 
     if (!user) {
       await this.securityService.log({
@@ -123,6 +131,11 @@ export class AuthService {
         user
       );
 
+    const refreshToken =
+      await this.tokenService.generateRefreshToken(
+        user
+      );
+
     await this.auditService.log({
       userId: user.id,
       action: AUDIT_ACTION.LOGIN,
@@ -130,6 +143,7 @@ export class AuthService {
 
     return {
       accessToken,
+      refreshToken,
 
       user: {
         id: user.id,
@@ -139,9 +153,57 @@ export class AuthService {
     };
   }
 
-  async logout(token) {
+  /**
+   * Refresh an expired access token.
+   */
+  async refresh(refreshToken) {
     const payload =
-      this.tokenService.decodeToken(token);
+      await this.tokenService.verifyRefreshToken(
+        refreshToken
+      );
+
+    const user =
+      await this.prisma.user.findUnique({
+        where: {
+          id: payload.sub,
+        },
+      });
+
+    if (!user) {
+      throw new AuthenticationError(
+        'User not found.'
+      );
+    }
+
+    // Rotate refresh token
+    await this.tokenService.revokeRefreshToken(
+      payload.jti
+    );
+
+    const newAccessToken =
+      this.tokenService.generateAccessToken(
+        user
+      );
+
+    const newRefreshToken =
+      await this.tokenService.generateRefreshToken(
+        user
+      );
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    };
+  }
+
+  /**
+   * Logout current session.
+   */
+  async logout(accessToken, refreshToken = null) {
+    const payload =
+      this.tokenService.decodeToken(
+        accessToken
+      );
 
     if (!payload) {
       throw new AuthenticationError(
@@ -160,11 +222,24 @@ export class AuthService {
       expiresInSeconds
     );
 
+    if (refreshToken) {
+      const refreshPayload =
+        await this.tokenService.verifyRefreshToken(
+          refreshToken
+        );
+
+      await this.tokenService.revokeRefreshToken(
+        refreshPayload.jti
+      );
+    }
+
     await this.auditService.log({
       userId: payload.sub,
       action: AUDIT_ACTION.LOGOUT,
     });
 
-    return;
+    return {
+      message: 'Logged out successfully.',
+    };
   }
 }

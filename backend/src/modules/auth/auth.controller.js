@@ -4,38 +4,28 @@ import { AuthService } from './auth.service.js';
 import { successResponse } from '../../utils/response.js';
 
 export class AuthController {
-  /**
-   * @param {import('fastify').FastifyInstance} fastify
-   */
+
   constructor(fastify) {
     this.authService = new AuthService(fastify);
   }
 
-  /**
-   * Register a new user.
-   *
-   * @param {import('fastify').FastifyRequest} request
-   * @param {import('fastify').FastifyReply} reply
-   */
   register = async (request, reply) => {
-    const user = await this.authService.register(request.body);
+    const result = await this.authService.register(
+      request.body
+    );
 
     return successResponse(
       reply,
-      user,
-      'User registered successfully.',
+      result.user,
+      result.message,
       201
     );
   };
 
-  /**
-   * Login a user.
-   *
-   * @param {import('fastify').FastifyRequest} request
-   * @param {import('fastify').FastifyReply} reply
-   */
+
   login = async (request, reply) => {
-    const result = await this.authService.login(request.body);
+    const result =
+      await this.authService.login(request.body);
 
     return successResponse(
       reply,
@@ -44,22 +34,37 @@ export class AuthController {
     );
   };
 
-  /**
-   * Logout the authenticated user.
-   *
-   * @param {import('fastify').FastifyRequest} request
-   * @param {import('fastify').FastifyReply} reply
-   */
+  refresh = async (request, reply) => {
+    const { refreshToken } = request.body;
+
+    const result =
+      await this.authService.refresh(
+        refreshToken
+      );
+
+    return successResponse(
+      reply,
+      result,
+      'Tokens refreshed successfully.'
+    );
+  };
+
+
   logout = async (request, reply) => {
     const authHeader =
       request.headers.authorization;
 
-    const token = authHeader?.replace(
+    const accessToken = authHeader?.replace(
       'Bearer ',
       ''
     );
 
-    await this.authService.logout(token);
+    const { refreshToken } = request.body;
+
+    await this.authService.logout(
+      accessToken,
+      refreshToken
+    );
 
     return successResponse(
       reply,

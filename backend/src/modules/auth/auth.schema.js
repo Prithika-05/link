@@ -1,8 +1,22 @@
 // src/modules/auth/auth.schema.js
 
+/**
+ * ---------------------------------------------------------
+ * Authentication Schemas
+ * ---------------------------------------------------------
+ * JSON Schemas for authentication endpoints.
+ * ---------------------------------------------------------
+ */
+
 const userSchema = {
   type: 'object',
-  required: ['id', 'username', 'email'],
+
+  required: [
+    'id',
+    'username',
+    'email',
+  ],
+
   properties: {
     id: {
       type: 'string',
@@ -23,6 +37,10 @@ const userSchema = {
     },
   },
 };
+
+/* -------------------------------------------------------------------------- */
+/*                                Register                                    */
+/* -------------------------------------------------------------------------- */
 
 export const registerSchema = {
   summary: 'Register a new user',
@@ -46,8 +64,6 @@ export const registerSchema = {
         minLength: 3,
         maxLength: 30,
         pattern: '^[a-zA-Z0-9_]+$',
-        description:
-          'Username may contain letters, numbers and underscores.',
       },
 
       email: {
@@ -57,16 +73,10 @@ export const registerSchema = {
 
       password: {
         type: 'string',
-
         minLength: 8,
-
         maxLength: 128,
-
         pattern:
           '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$',
-
-        description:
-          'Minimum 8 characters, including uppercase, lowercase and a number.',
       },
     },
   },
@@ -95,6 +105,10 @@ export const registerSchema = {
     },
   },
 };
+
+/* -------------------------------------------------------------------------- */
+/*                                  Login                                     */
+/* -------------------------------------------------------------------------- */
 
 export const loginSchema = {
   summary: 'Authenticate a user',
@@ -149,11 +163,16 @@ export const loginSchema = {
 
           required: [
             'accessToken',
+            'refreshToken',
             'user',
           ],
 
           properties: {
             accessToken: {
+              type: 'string',
+            },
+
+            refreshToken: {
               type: 'string',
             },
 
@@ -164,6 +183,75 @@ export const loginSchema = {
     },
   },
 };
+
+/* -------------------------------------------------------------------------- */
+/*                                 Refresh                                    */
+/* -------------------------------------------------------------------------- */
+
+export const refreshSchema = {
+  summary: 'Refresh authentication tokens',
+
+  tags: ['Authentication'],
+
+  body: {
+    type: 'object',
+
+    additionalProperties: false,
+
+    required: ['refreshToken'],
+
+    properties: {
+      refreshToken: {
+        type: 'string',
+      },
+    },
+  },
+
+  response: {
+    200: {
+      type: 'object',
+
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
+
+      properties: {
+        success: {
+          type: 'boolean',
+        },
+
+        message: {
+          type: 'string',
+        },
+
+        data: {
+          type: 'object',
+
+          required: [
+            'accessToken',
+            'refreshToken',
+          ],
+
+          properties: {
+            accessToken: {
+              type: 'string',
+            },
+
+            refreshToken: {
+              type: 'string',
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+/* -------------------------------------------------------------------------- */
+/*                                  Logout                                    */
+/* -------------------------------------------------------------------------- */
 
 export const logoutSchema = {
   summary: 'Logout the authenticated user',
@@ -177,6 +265,18 @@ export const logoutSchema = {
 
     properties: {
       authorization: {
+        type: 'string',
+      },
+    },
+  },
+
+  body: {
+    type: 'object',
+
+    additionalProperties: false,
+
+    properties: {
+      refreshToken: {
         type: 'string',
       },
     },

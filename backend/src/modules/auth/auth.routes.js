@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller.js';
 import {
   registerSchema,
   loginSchema,
+  refreshSchema,
   logoutSchema,
 } from './auth.schema.js';
 
@@ -41,6 +42,21 @@ export default async function authRoutes(fastify) {
       },
     },
     controller.login
+  );
+
+  fastify.post(
+    '/refresh',
+    {
+      schema: refreshSchema,
+
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 hour',
+        },
+      },
+    },
+    controller.refresh
   );
 
   fastify.post(
