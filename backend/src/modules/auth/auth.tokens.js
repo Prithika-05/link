@@ -22,11 +22,8 @@ export class TokenService {
     return this.jwt.sign(
       {
         jti: randomUUID(),
-
         sub: user.id,
-
         email: user.email,
-
         username: user.username,
       },
       {
@@ -37,9 +34,6 @@ export class TokenService {
 
   /**
    * Decode a JWT without verifying it.
-   *
-   * Used only when extracting expiration information
-   * during logout.
    *
    * @param {string} token
    * @returns {object|null}
@@ -58,7 +52,9 @@ export class TokenService {
     try {
       return await this.jwt.verify(token);
     } catch {
-      throw new AuthenticationError('Invalid or expired token.');
+      throw new AuthenticationError(
+        'Invalid or expired token.'
+      );
     }
   }
 
@@ -68,16 +64,17 @@ export class TokenService {
    * @param {string} jti
    * @param {number} expiresInSeconds
    */
-  async blacklistToken(
-    jti,
-    expiresInSeconds
-  ) {
+  async blacklistToken(jti, expiresInSeconds) {
+    const ttl = Math.max(
+      Number(expiresInSeconds),
+      1
+    );
+
     await this.redis.set(
       `${REDIS_PREFIX.JWT_BLACKLIST}${jti}`,
       'revoked',
-      {
-        EX: expiresInSeconds,
-      }
+      'EX',
+      ttl
     );
   }
 
