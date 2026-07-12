@@ -1,5 +1,13 @@
 // src/modules/messages/messages.schema.js
 
+/**
+ * ---------------------------------------------------------
+ * Message Schemas
+ * ---------------------------------------------------------
+ * JSON schemas for encrypted messaging endpoints.
+ * ---------------------------------------------------------
+ */
+
 const messageSchema = {
   type: 'object',
 
@@ -50,7 +58,12 @@ const messageSchema = {
 
     status: {
       type: 'string',
-      enum: ['SENT', 'DELIVERED', 'READ'],
+      enum: [
+        'SENT',
+        'DELIVERED',
+        'READ',
+        'FAILED',
+      ],
     },
 
     createdAt: {
@@ -59,6 +72,10 @@ const messageSchema = {
     },
   },
 };
+
+/* -------------------------------------------------------------------------- */
+/*                               Send Message                                 */
+/* -------------------------------------------------------------------------- */
 
 export const sendMessageSchema = {
   summary: 'Send an encrypted message',
@@ -71,7 +88,12 @@ export const sendMessageSchema = {
     additionalProperties: false,
 
     required: [
+      'messageId',
+      'timestamp',
+      'nonce',
+
       'receiverId',
+
       'ciphertext',
       'iv',
       'authTag',
@@ -79,6 +101,33 @@ export const sendMessageSchema = {
     ],
 
     properties: {
+      /**
+       * Client-generated UUID.
+       * Prevents duplicate message submission.
+       */
+      messageId: {
+        type: 'string',
+        format: 'uuid',
+      },
+
+      /**
+       * Unix timestamp (milliseconds).
+       */
+      timestamp: {
+        type: 'integer',
+        minimum: 0,
+      },
+
+      /**
+       * Random cryptographic nonce.
+       */
+      nonce: {
+        type: 'string',
+
+        minLength: 32,
+        maxLength: 128,
+      },
+
       receiverId: {
         type: 'string',
       },
@@ -121,7 +170,11 @@ export const sendMessageSchema = {
     201: {
       type: 'object',
 
-      required: ['success', 'message', 'data'],
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
 
       properties: {
         success: {
@@ -137,6 +190,10 @@ export const sendMessageSchema = {
     },
   },
 };
+
+/* -------------------------------------------------------------------------- */
+/*                           Conversation History                             */
+/* -------------------------------------------------------------------------- */
 
 export const conversationSchema = {
   summary: 'Retrieve conversation history',
@@ -161,19 +218,14 @@ export const conversationSchema = {
     properties: {
       page: {
         type: 'integer',
-
         minimum: 1,
-
         default: 1,
       },
 
       limit: {
         type: 'integer',
-
         minimum: 1,
-
         maximum: 100,
-
         default: 50,
       },
     },
@@ -183,7 +235,11 @@ export const conversationSchema = {
     200: {
       type: 'object',
 
-      required: ['success', 'message', 'data'],
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
 
       properties: {
         success: {
@@ -197,7 +253,10 @@ export const conversationSchema = {
         data: {
           type: 'object',
 
-          required: ['messages', 'pagination'],
+          required: [
+            'messages',
+            'pagination',
+          ],
 
           properties: {
             messages: {
@@ -215,6 +274,10 @@ export const conversationSchema = {
     },
   },
 };
+
+/* -------------------------------------------------------------------------- */
+/*                           Mark Delivered                                   */
+/* -------------------------------------------------------------------------- */
 
 export const markDeliveredSchema = {
   summary: 'Mark a message as delivered',
@@ -237,7 +300,11 @@ export const markDeliveredSchema = {
     200: {
       type: 'object',
 
-      required: ['success', 'message', 'data'],
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
 
       properties: {
         success: {
@@ -253,6 +320,10 @@ export const markDeliveredSchema = {
     },
   },
 };
+
+/* -------------------------------------------------------------------------- */
+/*                             Mark Read                                      */
+/* -------------------------------------------------------------------------- */
 
 export const markReadSchema = {
   summary: 'Mark a message as read',
@@ -275,7 +346,11 @@ export const markReadSchema = {
     200: {
       type: 'object',
 
-      required: ['success', 'message', 'data'],
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
 
       properties: {
         success: {
