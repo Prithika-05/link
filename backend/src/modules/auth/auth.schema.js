@@ -1,18 +1,117 @@
 // src/modules/auth/auth.schema.js
 
+const userSchema = {
+  type: 'object',
+  required: ['id', 'username', 'email'],
+  properties: {
+    id: {
+      type: 'string',
+    },
+
+    username: {
+      type: 'string',
+    },
+
+    email: {
+      type: 'string',
+      format: 'email',
+    },
+
+    createdAt: {
+      type: 'string',
+      format: 'date-time',
+    },
+  },
+};
+
 export const registerSchema = {
+  summary: 'Register a new user',
+
+  tags: ['Authentication'],
+
   body: {
     type: 'object',
-    required: ['username', 'email', 'password'],
+
     additionalProperties: false,
+
+    required: [
+      'username',
+      'email',
+      'password',
+    ],
 
     properties: {
       username: {
         type: 'string',
         minLength: 3,
         maxLength: 30,
+        pattern: '^[a-zA-Z0-9_]+$',
+        description:
+          'Username may contain letters, numbers and underscores.',
       },
 
+      email: {
+        type: 'string',
+        format: 'email',
+      },
+
+      password: {
+        type: 'string',
+
+        minLength: 8,
+
+        maxLength: 128,
+
+        pattern:
+          '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$',
+
+        description:
+          'Minimum 8 characters, including uppercase, lowercase and a number.',
+      },
+    },
+  },
+
+  response: {
+    201: {
+      type: 'object',
+
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
+
+      properties: {
+        success: {
+          type: 'boolean',
+        },
+
+        message: {
+          type: 'string',
+        },
+
+        data: userSchema,
+      },
+    },
+  },
+};
+
+export const loginSchema = {
+  summary: 'Authenticate a user',
+
+  tags: ['Authentication'],
+
+  body: {
+    type: 'object',
+
+    additionalProperties: false,
+
+    required: [
+      'email',
+      'password',
+    ],
+
+    properties: {
       email: {
         type: 'string',
         format: 'email',
@@ -27,29 +126,57 @@ export const registerSchema = {
   },
 
   response: {
-    201: {
+    200: {
       type: 'object',
+
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
+
       properties: {
-        success: { type: 'boolean' },
-        message: { type: 'string' },
+        success: {
+          type: 'boolean',
+        },
+
+        message: {
+          type: 'string',
+        },
+
+        data: {
+          type: 'object',
+
+          required: [
+            'accessToken',
+            'user',
+          ],
+
+          properties: {
+            accessToken: {
+              type: 'string',
+            },
+
+            user: userSchema,
+          },
+        },
       },
     },
   },
 };
 
-export const loginSchema = {
-  body: {
+export const logoutSchema = {
+  summary: 'Logout the authenticated user',
+
+  tags: ['Authentication'],
+
+  headers: {
     type: 'object',
-    required: ['email', 'password'],
-    additionalProperties: false,
+
+    required: ['authorization'],
 
     properties: {
-      email: {
-        type: 'string',
-        format: 'email',
-      },
-
-      password: {
+      authorization: {
         type: 'string',
       },
     },
@@ -58,18 +185,24 @@ export const loginSchema = {
   response: {
     200: {
       type: 'object',
-      required: ['success', 'token', 'user'],
+
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
+
       properties: {
-        success: { type: 'boolean' },
-        token: { type: 'string' },
-        user: {
-          type: 'object',
-          required: ['id', 'username', 'email'],
-          properties: {
-            id: { type: 'string' },
-            username: { type: 'string' },
-            email: { type: 'string', format: 'email' },
-          },
+        success: {
+          type: 'boolean',
+        },
+
+        message: {
+          type: 'string',
+        },
+
+        data: {
+          type: 'null',
         },
       },
     },

@@ -1,84 +1,136 @@
 // src/modules/auth/auth.service.js
 
-import bcrypt from "bcrypt";
-import { TokenService } from "./auth.tokens.js";
+import { TokenService } from './auth.tokens.js';
+
+import { hashPassword, verifyPassword } from '../../utils/password.js';
+
+import { ConflictError } from '../../errors/ConflictError.js';
+import { AuthenticationError } from '../../errors/AuthenticationError.js';
+
+import { AuditService } from '../audit/audit.service.js';
+import { SecurityService } from '../security/security.service.js';
+
+import {
+  AUDIT_ACTION,
+  SECURITY_EVENT,
+  SECURITY_SEVERITY,
+} from '../../utils/constants.js';
 
 export class AuthService {
   constructor(fastify) {
     this.prisma = fastify.prisma;
+
     this.tokenService = new TokenService(fastify);
+
+    this.auditService = new AuditService(fastify);
+
+    this.securityService = new SecurityService(fastify);
   }
 
+
   async register({ username, email, password }) {
-    const existingEmail = await this.prisma.user.findUnique({
-      where: { email },
+    return this.prisma.$transaction(async (tx) => {
+      const existingEmail = await tx.user.findUnique({
+        where: {
+          email,
+        },
+      });
+
+      if (existingEmail) {
+        throw new ConflictError(
+          'Email is already registered.'
+        );
+      }
+
+      const existingUsername =
+        await tx.user.findUnique({
+          where: {
+            username,
+          },
+        });
+
+      if (existingUsername) {
+        throw new ConflictError(
+          'Username is already taken.'
+        );
+      }
+
+      const passwordHash =
+        await hashPassword(password);
+
+      const user = await tx.user.create({
+        data: {
+          username,
+          email,
+          passwordHash,
+        },
+
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          createdAt: true,
+        },
+      });
+
+      await this.auditService.log({
+        userId: user.id,
+        action: AUDIT_ACTION.REGISTER,
+      });
+
+      return user;
     });
-
-    if (existingEmail) {
-      const error = new Error("Email already registered.");
-      error.statusCode = 409;
-      throw error;
-    }
-
-    const existingUsername = await this.prisma.user.findUnique({
-      where: { username },
-    });
-
-    if (existingUsername) {
-      const error = new Error("Username already taken.");
-      error.statusCode = 409;
-      throw error;
-    }
-
-    const passwordHash = await bcrypt.hash(password, 12);
-
-    const user = await this.prisma.user.create({
-      data: {
-        username,
-        email,
-        passwordHash,
-      },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-      },
-    });
-
-    return {
-      success: true,
-      message: "User registered successfully.",
-      user,
-    };
   }
 
   async login({ email, password }) {
     const user = await this.prisma.user.findUnique({
-      where: { email },
+      where: {
+        email,
+      },
     });
 
     if (!user) {
-      const error = new Error("Invalid email or password.");
-      error.statusCode = 401;
-      throw error;
+      await this.securityService.log({
+        event: SECURITY_EVENT.FAILED_LOGIN,
+        severity: SECURITY_SEVERITY.MEDIUM,
+      });
+
+      throw new AuthenticationError(
+        'Invalid email or password.'
+      );
     }
 
-    const validPassword = await bcrypt.compare(
-      password,
-      user.passwordHash
-    );
+    const validPassword =
+      await verifyPassword(
+        password,
+        user.passwordHash
+      );
 
     if (!validPassword) {
-      const error = new Error("Invalid email or password.");
-      error.statusCode =401;
-      throw error;
+      await this.securityService.log({
+        userId: user.id,
+        event: SECURITY_EVENT.FAILED_LOGIN,
+        severity: SECURITY_SEVERITY.MEDIUM,
+      });
+
+      throw new AuthenticationError(
+        'Invalid email or password.'
+      );
     }
 
-    const token = this.tokenService.generateAccessToken(user);
+    const accessToken =
+      this.tokenService.generateAccessToken(
+        user
+      );
+
+    await this.auditService.log({
+      userId: user.id,
+      action: AUDIT_ACTION.LOGIN,
+    });
 
     return {
-      success: true,
-      token,
+      accessToken,
+
       user: {
         id: user.id,
         username: user.username,
@@ -86,17 +138,20 @@ export class AuthService {
       },
     };
   }
+
   async logout(token) {
-    const payload = this.tokenService.decodeToken(token);
+    const payload =
+      this.tokenService.decodeToken(token);
 
     if (!payload) {
-      const error = new Error('Invalid token.');
-      error.statusCode = 401;
-      throw error;
+      throw new AuthenticationError(
+        'Invalid token.'
+      );
     }
 
     const expiresInSeconds = Math.max(
-      payload.exp - Math.floor(Date.now() / 1000),
+      payload.exp -
+        Math.floor(Date.now() / 1000),
       0
     );
 
@@ -105,9 +160,11 @@ export class AuthService {
       expiresInSeconds
     );
 
-    return {
-      success: true,
-      message: 'Logged out successfully.',
-    };
+    await this.auditService.log({
+      userId: payload.sub,
+      action: AUDIT_ACTION.LOGOUT,
+    });
+
+    return;
   }
 }

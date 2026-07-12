@@ -1,39 +1,38 @@
 // src/modules/auth/auth.routes.js
 
-import { AuthService } from './auth.service.js';
+import { AuthController } from './auth.controller.js';
+
 import {
   registerSchema,
   loginSchema,
+  logoutSchema,
 } from './auth.schema.js';
+
 import { authenticate } from '../../middlewares/auth.middleware.js';
 
 export default async function authRoutes(fastify) {
-  const authService = new AuthService(fastify);
+  const controller = new AuthController(fastify);
 
-  // Register
   fastify.post(
     '/register',
     {
       schema: registerSchema,
+
       config: {
-      rateLimit: {
-        max: 3,
-        timeWindow: "1 hour",
+        rateLimit: {
+          max: 3,
+          timeWindow: '1 hour',
+        },
       },
     },
-  },
-    async (request, reply) => {
-      const result = await authService.register(request.body);
-
-      return reply.code(201).send(result);
-    }
+    controller.register
   );
 
-  // Login
   fastify.post(
     '/login',
     {
       schema: loginSchema,
+
       config: {
         rateLimit: {
           max: 5,
@@ -41,27 +40,23 @@ export default async function authRoutes(fastify) {
         },
       },
     },
-    async (request, reply) => {
-      const result = await authService.login(request.body);
-
-      return reply.code(200).send(result);
-    }
+    controller.login
   );
 
   fastify.post(
     '/logout',
     {
+      schema: logoutSchema,
+
       preHandler: [authenticate],
+
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 hour',
+        },
+      },
     },
-    async (request, reply) => {
-      const token = request.headers.authorization.replace(
-        'Bearer ',
-        ''
-      );
-
-      const result = await authService.logout(token);
-
-      return reply.send(result);
-    }
+    controller.logout
   );
 }

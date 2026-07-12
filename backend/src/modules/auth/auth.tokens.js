@@ -1,5 +1,10 @@
 // src/modules/auth/auth.tokens.js
-import { randomUUID } from "node:crypto";
+
+import { randomUUID } from 'node:crypto';
+
+import { env } from '../../config/env.js';
+import { REDIS_PREFIX } from '../../utils/constants.js';
+import { AuthenticationError } from '../../errors/AuthenticationError.js';
 
 export class TokenService {
   constructor(fastify) {
@@ -7,33 +12,86 @@ export class TokenService {
     this.redis = fastify.redis;
   }
 
-generateAccessToken(user) {
-  const payload = {
-    jti: randomUUID(),
-    sub: user.id,
-    email: user.email,
-    username: user.username,
-  };
+  /**
+   * Generate a JWT access token.
+   *
+   * @param {Object} user
+   * @returns {string}
+   */
+  generateAccessToken(user) {
+    return this.jwt.sign(
+      {
+        jti: randomUUID(),
 
-  console.log(payload);
+        sub: user.id,
 
-  return this.jwt.sign(payload);
-}
-   decodeToken(token) {
-    return this.jwt.decode(token);
-  }
+        email: user.email,
 
-  async blacklistToken(jti, expiresInSeconds) {
-    await this.redis.set(
-      `blacklist:${jti}`,
-      "revoked",
-      "EX",
-      expiresInSeconds
+        username: user.username,
+      },
+      {
+        expiresIn: env.jwtAccessExpiresIn,
+      }
     );
   }
 
+  /**
+   * Decode a JWT without verifying it.
+   *
+   * Used only when extracting expiration information
+   * during logout.
+   *
+   * @param {string} token
+   * @returns {object|null}
+   */
+  decodeToken(token) {
+    return this.jwt.decode(token);
+  }
+
+  /**
+   * Verify JWT signature and claims.
+   *
+   * @param {string} token
+   * @returns {Promise<object>}
+   */
+  async verifyToken(token) {
+    try {
+      return await this.jwt.verify(token);
+    } catch {
+      throw new AuthenticationError('Invalid or expired token.');
+    }
+  }
+
+  /**
+   * Add a JWT to the Redis blacklist.
+   *
+   * @param {string} jti
+   * @param {number} expiresInSeconds
+   */
+  async blacklistToken(
+    jti,
+    expiresInSeconds
+  ) {
+    await this.redis.set(
+      `${REDIS_PREFIX.JWT_BLACKLIST}${jti}`,
+      'revoked',
+      {
+        EX: expiresInSeconds,
+      }
+    );
+  }
+
+  /**
+   * Check whether a JWT has been revoked.
+   *
+   * @param {string} jti
+   * @returns {Promise<boolean>}
+   */
   async isBlacklisted(jti) {
-    const exists = await this.redis.get(`blacklist:${jti}`);
-    return exists !== null;
+    const token = await this.redis.get(
+      `${REDIS_PREFIX.JWT_BLACKLIST}${jti}`
+    );
+
+    return token !== null;
   }
 }
