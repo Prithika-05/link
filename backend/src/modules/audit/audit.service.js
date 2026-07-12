@@ -1,12 +1,26 @@
 // src/modules/audit/audit.service.js
 
 export class AuditService {
+  /**
+   * @param {import('fastify').FastifyInstance} fastify
+   */
   constructor(fastify) {
     this.prisma = fastify.prisma;
+    this.log = fastify.log;
   }
 
+  /**
+   * Record an audit event.
+   *
+   * @param {Object} data
+   * @param {string|null} data.userId
+   * @param {string} data.action
+   * @param {string|null} [data.ipAddress]
+   * @param {string|null} [data.userAgent]
+   * @returns {Promise<void>}
+   */
   async log({
-    userId,
+    userId = null,
     action,
     ipAddress = null,
     userAgent = null,
@@ -21,7 +35,14 @@ export class AuditService {
         },
       });
     } catch (error) {
-      console.error('Audit log failed:', error);
+      this.log.error(
+        {
+          error,
+          action,
+          userId,
+        },
+        'Failed to write audit log.'
+      );
     }
   }
 }
