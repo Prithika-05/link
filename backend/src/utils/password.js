@@ -6,27 +6,39 @@ import { env } from '../config/env.js';
 
 import { ValidationError } from '../errors/ValidationError.js';
 
-/**
- * Hash a plain-text password.
- *
- * @param {string} password
- * @returns {Promise<string>}
- */
-export async function hashPassword(password) {
+export function validatePassword(password) {
   if (!password || typeof password !== 'string') {
     throw new ValidationError('Password is required.');
   }
 
-  return bcrypt.hash(password, env.bcryptRounds);
+  const value = password.trim();
+
+  if (value.length < 8) {
+    throw new ValidationError(
+      'Password must be at least 8 characters long.'
+    );
+  }
+
+  const strongPassword =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
+
+  if (!strongPassword.test(value)) {
+    throw new ValidationError(
+      'Password must contain at least one uppercase letter, one lowercase letter, and one number.'
+    );
+  }
 }
 
-/**
- * Compare a plain-text password with its hash.
- *
- * @param {string} password
- * @param {string} passwordHash
- * @returns {Promise<boolean>}
- */
+
+export async function hashPassword(password) {
+  validatePassword(password);
+
+  return bcrypt.hash(
+    password.trim(),
+    env.bcryptRounds
+  );
+}
+
 export async function verifyPassword(
   password,
   passwordHash
@@ -37,5 +49,8 @@ export async function verifyPassword(
     );
   }
 
-  return bcrypt.compare(password, passwordHash);
+  return bcrypt.compare(
+    password.trim(),
+    passwordHash
+  );
 }

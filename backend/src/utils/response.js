@@ -1,13 +1,5 @@
 // src/utils/response.js
 
-/**
- * Send a successful response.
- *
- * @param {import('fastify').FastifyReply} reply
- * @param {*} data
- * @param {string} message
- * @param {number} statusCode
- */
 export function successResponse(
   reply,
   data = null,
@@ -21,12 +13,6 @@ export function successResponse(
   });
 }
 
-/**
- * Send an error response.
- *
- * @param {import('fastify').FastifyReply} reply
- * @param {Error} error
- */
 export function errorResponse(reply, error) {
   const statusCode = error.statusCode || 500;
 

@@ -2,13 +2,6 @@
 
 import { PAGINATION } from './constants.js';
 
-/**
- * Parse pagination query parameters.
- *
- * @param {number|string} page
- * @param {number|string} limit
- * @returns {{page:number,limit:number,skip:number}}
- */
 export function getPagination(page, limit) {
   let currentPage =
     Number.parseInt(page, 10) ||
@@ -37,14 +30,6 @@ export function getPagination(page, limit) {
   };
 }
 
-/**
- * Build pagination metadata.
- *
- * @param {number} page
- * @param {number} limit
- * @param {number} total
- * @returns {object}
- */
 export function buildPagination(
   page,
   limit,
