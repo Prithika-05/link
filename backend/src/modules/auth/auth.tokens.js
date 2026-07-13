@@ -8,7 +8,9 @@ import {
   REDIS_PREFIX,
   TOKEN_TYPE,
 } from '../../utils/constants.js';
+
 import { AuthenticationError } from '../../errors/AuthenticationError.js';
+import { NotFoundError } from '../../errors/NotFoundError.js';
 
 export class TokenService {
   constructor(fastify) {
@@ -17,9 +19,10 @@ export class TokenService {
     this.prisma = fastify.prisma;
   }
 
-  /**
-   * Generate an access token.
-   */
+  /* -------------------------------------------------------------------------- */
+  /*                               Access Token                                 */
+  /* -------------------------------------------------------------------------- */
+
   generateAccessToken(user) {
     return this.jwt.sign(
       {
@@ -35,16 +38,11 @@ export class TokenService {
     );
   }
 
-  /**
-   * Generate a refresh token and create a device session.
-   *
-   * @param {Object} user
-   * @param {Object} session
-   */
-  async generateRefreshToken(
-    user,
-    session = {}
-  ) {
+  /* -------------------------------------------------------------------------- */
+  /*                              Refresh Token                                */
+  /* -------------------------------------------------------------------------- */
+
+  async generateRefreshToken(user, session = {}) {
     const tokenId = randomUUID();
 
     const token = this.jwt.sign(
@@ -98,16 +96,14 @@ export class TokenService {
     return token;
   }
 
-  /**
-   * Decode without verification.
-   */
+  /* -------------------------------------------------------------------------- */
+  /*                             Token Validation                               */
+  /* -------------------------------------------------------------------------- */
+
   decodeToken(token) {
     return this.jwt.decode(token);
   }
 
-  /**
-   * Verify any JWT.
-   */
   async verifyToken(token) {
     try {
       return await this.jwt.verify(token);
@@ -118,9 +114,6 @@ export class TokenService {
     }
   }
 
-  /**
-   * Verify refresh token.
-   */
   async verifyRefreshToken(token) {
     const payload =
       await this.verifyToken(token);
@@ -151,7 +144,6 @@ export class TokenService {
       );
     }
 
-    // Update last activity
     if (storedToken.deviceSession) {
       await this.prisma.deviceSession.update({
         where: {
@@ -166,9 +158,10 @@ export class TokenService {
     return payload;
   }
 
-  /**
-   * Revoke one refresh token.
-   */
+  /* -------------------------------------------------------------------------- */
+  /*                              Refresh Revocation                            */
+  /* -------------------------------------------------------------------------- */
+
   async revokeRefreshToken(tokenId) {
     await this.prisma.refreshToken.update({
       where: {
@@ -180,49 +173,82 @@ export class TokenService {
     });
   }
 
-  /**
-   * Revoke all refresh tokens for a user.
-   */
   async revokeAllRefreshTokens(userId) {
-    await this.prisma.refreshToken.updateMany({
-      where: {
-        userId,
-        revoked: false,
-      },
-      data: {
-        revoked: true,
-      },
-    });
+    await this.prisma.$transaction([
+      this.prisma.refreshToken.updateMany({
+        where: {
+          userId,
+          revoked: false,
+        },
+        data: {
+          revoked: true,
+        },
+      }),
+
+      this.prisma.deviceSession.deleteMany({
+        where: {
+          userId,
+        },
+      }),
+    ]);
   }
 
-  /**
-   * Get active sessions.
-   */
+  /* -------------------------------------------------------------------------- */
+  /*                              Device Sessions                               */
+  /* -------------------------------------------------------------------------- */
+
   async getDeviceSessions(userId) {
     return this.prisma.deviceSession.findMany({
       where: {
         userId,
+
+        refreshToken: {
+          revoked: false,
+        },
       },
+
       orderBy: {
         lastSeenAt: 'desc',
       },
     });
   }
 
-  /**
-   * Remove a single device session.
-   */
   async revokeDeviceSession(sessionId) {
-    return this.prisma.deviceSession.delete({
-      where: {
-        id: sessionId,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const session =
+        await tx.deviceSession.findUnique({
+          where: {
+            id: sessionId,
+          },
+        });
+
+      if (!session) {
+        throw new NotFoundError(
+          'Device session not found.'
+        );
+      }
+
+      await tx.refreshToken.update({
+        where: {
+          id: session.refreshTokenId,
+        },
+        data: {
+          revoked: true,
+        },
+      });
+
+      await tx.deviceSession.delete({
+        where: {
+          id: sessionId,
+        },
+      });
     });
   }
 
-  /**
-   * Blacklist access token.
-   */
+  /* -------------------------------------------------------------------------- */
+  /*                              JWT Blacklist                                 */
+  /* -------------------------------------------------------------------------- */
+
   async blacklistToken(
     jti,
     expiresInSeconds
@@ -235,9 +261,6 @@ export class TokenService {
     );
   }
 
-  /**
-   * Check blacklist.
-   */
   async isBlacklisted(jti) {
     const token = await this.redis.get(
       `${REDIS_PREFIX.JWT_BLACKLIST}${jti}`

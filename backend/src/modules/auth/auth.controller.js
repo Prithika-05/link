@@ -10,26 +10,38 @@ export class AuthController {
 
   /**
    * Build session metadata from the request.
+   *
+   * @param {import('fastify').FastifyRequest} request
+   * @returns {Object}
    */
   getSessionInfo(request) {
+    const body = request.body ?? {};
+
     return {
       ipAddress: request.ip,
-      userAgent: request.headers['user-agent'] ?? null,
 
-      // Optional values supplied by the frontend
-      deviceName: request.body?.deviceName ?? null,
-      platform: request.body?.platform ?? null,
-      browser: request.body?.browser ?? null,
+      userAgent:
+        request.headers['user-agent'] ?? null,
+
+      deviceName:
+        body.deviceName ?? null,
+
+      platform:
+        body.platform ?? null,
+
+      browser:
+        body.browser ?? null,
     };
   }
 
   /**
-   * Register
+   * Register a new user.
    */
   register = async (request, reply) => {
-    const result = await this.authService.register(
-      request.body
-    );
+    const result =
+      await this.authService.register(
+        request.body
+      );
 
     return successResponse(
       reply,
@@ -40,7 +52,7 @@ export class AuthController {
   };
 
   /**
-   * Login
+   * Login.
    */
   login = async (request, reply) => {
     const result =
@@ -57,7 +69,7 @@ export class AuthController {
   };
 
   /**
-   * Refresh tokens
+   * Refresh authentication tokens.
    */
   refresh = async (request, reply) => {
     const { refreshToken } = request.body;
@@ -76,22 +88,24 @@ export class AuthController {
   };
 
   /**
-   * Logout current session
+   * Logout current session.
    */
   logout = async (request, reply) => {
     const authHeader =
-      request.headers.authorization;
+      request.headers.authorization ?? '';
 
-    const accessToken = authHeader?.replace(
-      'Bearer ',
+    const accessToken = authHeader.replace(
+      /^Bearer\s+/i,
       ''
     );
 
-    const { refreshToken } = request.body;
+    const { refreshToken } =
+      request.body ?? {};
 
     await this.authService.logout(
       accessToken,
-      refreshToken
+      refreshToken,
+      this.getSessionInfo(request)
     );
 
     return successResponse(
@@ -102,7 +116,7 @@ export class AuthController {
   };
 
   /**
-   * List all active device sessions
+   * List active device sessions.
    */
   getSessions = async (request, reply) => {
     const sessions =
@@ -118,7 +132,7 @@ export class AuthController {
   };
 
   /**
-   * Revoke one device session
+   * Revoke one device session.
    */
   revokeSession = async (
     request,
@@ -138,7 +152,7 @@ export class AuthController {
   };
 
   /**
-   * Revoke all device sessions
+   * Revoke all device sessions.
    */
   revokeAllSessions = async (
     request,

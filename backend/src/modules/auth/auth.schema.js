@@ -4,9 +4,16 @@
  * ---------------------------------------------------------
  * Authentication Schemas
  * ---------------------------------------------------------
- * JSON Schemas for authentication endpoints.
- * ---------------------------------------------------------
  */
+
+const successSchema = {
+  success: {
+    type: 'boolean',
+  },
+  message: {
+    type: 'string',
+  },
+};
 
 const userSchema = {
   type: 'object',
@@ -58,23 +65,28 @@ const sessionSchema = {
     },
 
     deviceName: {
-      type: ['string', 'null'],
+      type: 'string',
+      nullable: true,
     },
 
     platform: {
-      type: ['string', 'null'],
+      type: 'string',
+      nullable: true,
     },
 
     browser: {
-      type: ['string', 'null'],
+      type: 'string',
+      nullable: true,
     },
 
     ipAddress: {
-      type: ['string', 'null'],
+      type: 'string',
+      nullable: true,
     },
 
     userAgent: {
-      type: ['string', 'null'],
+      type: 'string',
+      nullable: true,
     },
 
     lastSeenAt: {
@@ -89,8 +101,28 @@ const sessionSchema = {
   },
 };
 
+const deviceInfoProperties = {
+  deviceName: {
+    type: 'string',
+    minLength: 1,
+    maxLength: 100,
+  },
+
+  platform: {
+    type: 'string',
+    minLength: 1,
+    maxLength: 100,
+  },
+
+  browser: {
+    type: 'string',
+    minLength: 1,
+    maxLength: 100,
+  },
+};
+
 /* -------------------------------------------------------------------------- */
-/*                                Register                                    */
+/* Register */
 /* -------------------------------------------------------------------------- */
 
 export const registerSchema = {
@@ -143,13 +175,7 @@ export const registerSchema = {
       ],
 
       properties: {
-        success: {
-          type: 'boolean',
-        },
-
-        message: {
-          type: 'string',
-        },
+        ...successSchema,
 
         data: userSchema,
       },
@@ -158,7 +184,7 @@ export const registerSchema = {
 };
 
 /* -------------------------------------------------------------------------- */
-/*                                  Login                                     */
+/* Login */
 /* -------------------------------------------------------------------------- */
 
 export const loginSchema = {
@@ -188,17 +214,7 @@ export const loginSchema = {
         maxLength: 128,
       },
 
-      deviceName: {
-        type: 'string',
-      },
-
-      platform: {
-        type: 'string',
-      },
-
-      browser: {
-        type: 'string',
-      },
+      ...deviceInfoProperties,
     },
   },
 
@@ -213,13 +229,7 @@ export const loginSchema = {
       ],
 
       properties: {
-        success: {
-          type: 'boolean',
-        },
-
-        message: {
-          type: 'string',
-        },
+        ...successSchema,
 
         data: {
           type: 'object',
@@ -248,7 +258,7 @@ export const loginSchema = {
 };
 
 /* -------------------------------------------------------------------------- */
-/*                                 Refresh                                    */
+/* Refresh */
 /* -------------------------------------------------------------------------- */
 
 export const refreshSchema = {
@@ -268,17 +278,7 @@ export const refreshSchema = {
         type: 'string',
       },
 
-      deviceName: {
-        type: 'string',
-      },
-
-      platform: {
-        type: 'string',
-      },
-
-      browser: {
-        type: 'string',
-      },
+      ...deviceInfoProperties,
     },
   },
 
@@ -293,13 +293,7 @@ export const refreshSchema = {
       ],
 
       properties: {
-        success: {
-          type: 'boolean',
-        },
-
-        message: {
-          type: 'string',
-        },
+        ...successSchema,
 
         data: {
           type: 'object',
@@ -325,7 +319,7 @@ export const refreshSchema = {
 };
 
 /* -------------------------------------------------------------------------- */
-/*                                  Logout                                    */
+/* Logout */
 /* -------------------------------------------------------------------------- */
 
 export const logoutSchema = {
@@ -350,6 +344,8 @@ export const logoutSchema = {
 
     additionalProperties: false,
 
+    required: ['refreshToken'],
+
     properties: {
       refreshToken: {
         type: 'string',
@@ -368,13 +364,7 @@ export const logoutSchema = {
       ],
 
       properties: {
-        success: {
-          type: 'boolean',
-        },
-
-        message: {
-          type: 'string',
-        },
+        ...successSchema,
 
         data: {
           type: 'null',
@@ -385,7 +375,7 @@ export const logoutSchema = {
 };
 
 /* -------------------------------------------------------------------------- */
-/*                            Device Sessions                                 */
+/* Device Sessions */
 /* -------------------------------------------------------------------------- */
 
 export const sessionsSchema = {
@@ -404,13 +394,7 @@ export const sessionsSchema = {
       ],
 
       properties: {
-        success: {
-          type: 'boolean',
-        },
-
-        message: {
-          type: 'string',
-        },
+        ...successSchema,
 
         data: {
           type: 'array',
@@ -449,13 +433,7 @@ export const revokeSessionSchema = {
       ],
 
       properties: {
-        success: {
-          type: 'boolean',
-        },
-
-        message: {
-          type: 'string',
-        },
+        ...successSchema,
 
         data: {
           type: 'null',
@@ -481,13 +459,7 @@ export const revokeAllSessionsSchema = {
       ],
 
       properties: {
-        success: {
-          type: 'boolean',
-        },
-
-        message: {
-          type: 'string',
-        },
+        ...successSchema,
 
         data: {
           type: 'null',

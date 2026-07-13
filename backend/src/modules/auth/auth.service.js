@@ -165,7 +165,7 @@ export class AuthService {
   }
 
   /**
-   * Refresh tokens.
+   * Refresh authentication tokens.
    */
   async refresh(
     refreshToken,
@@ -189,25 +189,37 @@ export class AuthService {
       );
     }
 
-    await this.tokenService.revokeRefreshToken(
-      payload.jti
-    );
+    const result =
+      await this.prisma.$transaction(async () => {
+        await this.tokenService.revokeRefreshToken(
+          payload.jti
+        );
 
-    const accessToken =
-      this.tokenService.generateAccessToken(
-        user
-      );
+        const accessToken =
+          this.tokenService.generateAccessToken(
+            user
+          );
 
-    const newRefreshToken =
-      await this.tokenService.generateRefreshToken(
-        user,
-        session
-      );
+        const newRefreshToken =
+          await this.tokenService.generateRefreshToken(
+            user,
+            session
+          );
 
-    return {
-      accessToken,
-      refreshToken: newRefreshToken,
-    };
+        return {
+          accessToken,
+          refreshToken: newRefreshToken,
+        };
+      });
+
+    await this.auditService.log({
+      userId: user.id,
+      action: AUDIT_ACTION.TOKEN_REFRESH,
+      ipAddress: session.ipAddress,
+      userAgent: session.userAgent,
+    });
+
+    return result;
   }
 
   /**
@@ -215,7 +227,8 @@ export class AuthService {
    */
   async logout(
     accessToken,
-    refreshToken = null
+    refreshToken = null,
+    session = {}
   ) {
     const payload =
       this.tokenService.decodeToken(
@@ -253,6 +266,8 @@ export class AuthService {
     await this.auditService.log({
       userId: payload.sub,
       action: AUDIT_ACTION.LOGOUT,
+      ipAddress: session.ipAddress,
+      userAgent: session.userAgent,
     });
 
     return {
@@ -299,6 +314,11 @@ export class AuthService {
       sessionId
     );
 
+    await this.auditService.log({
+      userId,
+      action: AUDIT_ACTION.SESSION_REVOKED,
+    });
+
     return {
       message:
         'Device session revoked successfully.',
@@ -312,6 +332,12 @@ export class AuthService {
     await this.tokenService.revokeAllRefreshTokens(
       userId
     );
+
+    await this.auditService.log({
+      userId,
+      action:
+        AUDIT_ACTION.ALL_SESSIONS_REVOKED,
+    });
 
     return {
       message:
