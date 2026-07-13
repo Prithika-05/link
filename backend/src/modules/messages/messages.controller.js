@@ -8,7 +8,9 @@ export class MessagesController {
    * @param {import('fastify').FastifyInstance} fastify
    */
   constructor(fastify) {
-    this.messageService = new MessageService(fastify);
+    this.messagesService = new MessageService(
+      fastify
+    );
   }
 
   /**
@@ -18,10 +20,11 @@ export class MessagesController {
    * @param {import('fastify').FastifyReply} reply
    */
   send = async (request, reply) => {
-    const message = await this.messageService.send(
-      request.user.sub,
-      request.body
-    );
+    const message =
+      await this.messagesService.send(
+        request.user.sub,
+        request.body
+      );
 
     return successResponse(
       reply,
@@ -37,12 +40,22 @@ export class MessagesController {
    * @param {import('fastify').FastifyRequest} request
    * @param {import('fastify').FastifyReply} reply
    */
-  conversation = async (request, reply) => {
+  conversation = async (
+    request,
+    reply
+  ) => {
     const { userId } = request.params;
-    const { page, limit } = request.query;
+
+    const page = Number(
+      request.query.page ?? 1
+    );
+
+    const limit = Number(
+      request.query.limit ?? 50
+    );
 
     const result =
-      await this.messageService.conversation(
+      await this.messagesService.conversation(
         request.user.sub,
         userId,
         page,
@@ -62,9 +75,12 @@ export class MessagesController {
    * @param {import('fastify').FastifyRequest} request
    * @param {import('fastify').FastifyReply} reply
    */
-  markDelivered = async (request, reply) => {
+  markDelivered = async (
+    request,
+    reply
+  ) => {
     const message =
-      await this.messageService.markDelivered(
+      await this.messagesService.markDelivered(
         request.params.messageId
       );
 
@@ -81,9 +97,12 @@ export class MessagesController {
    * @param {import('fastify').FastifyRequest} request
    * @param {import('fastify').FastifyReply} reply
    */
-  markRead = async (request, reply) => {
+  markRead = async (
+    request,
+    reply
+  ) => {
     const message =
-      await this.messageService.markRead(
+      await this.messagesService.markRead(
         request.params.messageId
       );
 

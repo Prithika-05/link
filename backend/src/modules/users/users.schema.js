@@ -2,7 +2,13 @@
 
 const userSchema = {
   type: 'object',
-  required: ['id', 'username'],
+
+  required: [
+    'id',
+    'username',
+    'status',
+  ],
+
   properties: {
     id: {
       type: 'string',
@@ -17,6 +23,15 @@ const userSchema = {
       format: 'email',
     },
 
+    status: {
+      type: 'string',
+      enum: [
+        'ONLINE',
+        'OFFLINE',
+        'AWAY',
+      ],
+    },
+
     createdAt: {
       type: 'string',
       format: 'date-time',
@@ -29,6 +44,10 @@ const userSchema = {
   },
 };
 
+/* -------------------------------------------------------------------------- */
+/*                                Current User                                */
+/* -------------------------------------------------------------------------- */
+
 export const getCurrentUserSchema = {
   summary: 'Get authenticated user profile',
 
@@ -38,7 +57,11 @@ export const getCurrentUserSchema = {
     200: {
       type: 'object',
 
-      required: ['success', 'message', 'data'],
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
 
       properties: {
         success: {
@@ -54,6 +77,10 @@ export const getCurrentUserSchema = {
     },
   },
 };
+
+/* -------------------------------------------------------------------------- */
+/*                               Get User By ID                               */
+/* -------------------------------------------------------------------------- */
 
 export const getUserByIdSchema = {
   summary: 'Get public user profile',
@@ -76,7 +103,11 @@ export const getUserByIdSchema = {
     200: {
       type: 'object',
 
-      required: ['success', 'message', 'data'],
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
 
       properties: {
         success: {
@@ -92,6 +123,56 @@ export const getUserByIdSchema = {
     },
   },
 };
+
+/* -------------------------------------------------------------------------- */
+/*                           Get User By Username                             */
+/* -------------------------------------------------------------------------- */
+
+export const getUserByUsernameSchema = {
+  summary: 'Get user by username',
+
+  tags: ['Users'],
+
+  params: {
+    type: 'object',
+
+    required: ['username'],
+
+    properties: {
+      username: {
+        type: 'string',
+      },
+    },
+  },
+
+  response: {
+    200: {
+      type: 'object',
+
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
+
+      properties: {
+        success: {
+          type: 'boolean',
+        },
+
+        message: {
+          type: 'string',
+        },
+
+        data: userSchema,
+      },
+    },
+  },
+};
+
+/* -------------------------------------------------------------------------- */
+/*                              Update Profile                                */
+/* -------------------------------------------------------------------------- */
 
 export const updateProfileSchema = {
   summary: 'Update authenticated user profile',
@@ -122,7 +203,11 @@ export const updateProfileSchema = {
     200: {
       type: 'object',
 
-      required: ['success', 'message', 'data'],
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
 
       properties: {
         success: {
@@ -138,6 +223,78 @@ export const updateProfileSchema = {
     },
   },
 };
+
+/* -------------------------------------------------------------------------- */
+/*                             Change Password                                */
+/* -------------------------------------------------------------------------- */
+
+export const changePasswordSchema = {
+  summary: 'Change account password',
+
+  tags: ['Users'],
+
+  body: {
+    type: 'object',
+
+    additionalProperties: false,
+
+    required: [
+      'currentPassword',
+      'newPassword',
+    ],
+
+    properties: {
+      currentPassword: {
+        type: 'string',
+
+        minLength: 8,
+
+        maxLength: 128,
+      },
+
+      newPassword: {
+        type: 'string',
+
+        minLength: 8,
+
+        maxLength: 128,
+
+        pattern:
+          '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$',
+      },
+    },
+  },
+
+  response: {
+    200: {
+      type: 'object',
+
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
+
+      properties: {
+        success: {
+          type: 'boolean',
+        },
+
+        message: {
+          type: 'string',
+        },
+
+        data: {
+          type: 'null',
+        },
+      },
+    },
+  },
+};
+
+/* -------------------------------------------------------------------------- */
+/*                               Search Users                                 */
+/* -------------------------------------------------------------------------- */
 
 export const searchUsersSchema = {
   summary: 'Search users',
@@ -180,7 +337,11 @@ export const searchUsersSchema = {
     200: {
       type: 'object',
 
-      required: ['success', 'message', 'data'],
+      required: [
+        'success',
+        'message',
+        'data',
+      ],
 
       properties: {
         success: {
@@ -194,7 +355,10 @@ export const searchUsersSchema = {
         data: {
           type: 'object',
 
-          required: ['users', 'pagination'],
+          required: [
+            'users',
+            'pagination',
+          ],
 
           properties: {
             users: {

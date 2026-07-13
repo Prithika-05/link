@@ -6,47 +6,88 @@ import { SecurityService } from '../modules/security/security.service.js';
 import {
   SECURITY_EVENT,
   SECURITY_SEVERITY,
+  TOKEN_TYPE,
 } from '../utils/constants.js';
 
 import { allowConnection } from './socket.rate-limit.js';
 
 export function registerSocketAuth(io, fastify) {
   const tokenService = new TokenService(fastify);
-  const securityService = new SecurityService(fastify);
+  const securityService =
+    new SecurityService(fastify);
 
   io.use(async (socket, next) => {
-    try {
-      const ipAddress = socket.handshake.address;
+    const ipAddress =
+      socket.handshake.address;
 
+    const userAgent =
+      socket.handshake.headers[
+        'user-agent'
+      ] ?? null;
+
+    try {
+      /**
+       * Rate limiting.
+       */
       if (!allowConnection(ipAddress)) {
         await securityService.log({
-          event: SECURITY_EVENT.RATE_LIMIT_EXCEEDED,
-          severity: SECURITY_SEVERITY.MEDIUM,
+          event:
+            SECURITY_EVENT.RATE_LIMIT_EXCEEDED,
+
+          severity:
+            SECURITY_SEVERITY.MEDIUM,
+
           ipAddress,
+
+          metadata: {
+            userAgent,
+          },
         });
 
         return next(
-          new Error('Too many connection attempts.')
+          new Error(
+            'Too many connection attempts.'
+          )
         );
       }
 
-      const token = socket.handshake.auth?.token;
+      /**
+       * Access token.
+       */
+      const token =
+        socket.handshake.auth?.token;
 
       if (!token) {
         return next(
-          new Error('Authentication required.')
+          new Error(
+            'Authentication required.'
+          )
         );
       }
 
+      /**
+       * Verify JWT.
+       */
       const payload =
-        await tokenService.verifyToken(token);
+        await tokenService.verifyToken(
+          token
+        );
 
-      if (!payload?.jti) {
+      if (
+        !payload?.jti ||
+        payload.type !==
+          TOKEN_TYPE.ACCESS
+      ) {
         return next(
-          new Error('Invalid token.')
+          new Error(
+            'Invalid access token.'
+          )
         );
       }
 
+      /**
+       * Check blacklist.
+       */
       const revoked =
         await tokenService.isBlacklisted(
           payload.jti
@@ -56,18 +97,29 @@ export function registerSocketAuth(io, fastify) {
         await securityService.log({
           userId: payload.sub,
 
-          event: SECURITY_EVENT.INVALID_JWT,
+          event:
+            SECURITY_EVENT.INVALID_JWT,
 
-          severity: SECURITY_SEVERITY.MEDIUM,
+          severity:
+            SECURITY_SEVERITY.MEDIUM,
 
           ipAddress,
+
+          metadata: {
+            userAgent,
+          },
         });
 
         return next(
-          new Error('Token has been revoked.')
+          new Error(
+            'Token has been revoked.'
+          )
         );
       }
 
+      /**
+       * Attach authenticated user.
+       */
       socket.data.user = payload;
 
       fastify.log.debug(
@@ -78,17 +130,35 @@ export function registerSocketAuth(io, fastify) {
         'Socket authenticated.'
       );
 
-      next();
+      return next();
     } catch (error) {
       await securityService.log({
-        event: SECURITY_EVENT.INVALID_JWT,
+        event:
+          SECURITY_EVENT.SOCKET_AUTH_FAILED,
 
-        severity: SECURITY_SEVERITY.MEDIUM,
+        severity:
+          SECURITY_SEVERITY.MEDIUM,
 
-        ipAddress: socket.handshake.address,
+        ipAddress,
+
+        metadata: {
+          userAgent,
+          reason: error.message,
+        },
       });
 
-      next(new Error('Unauthorized.'));
+      fastify.log.warn(
+        {
+          socketId: socket.id,
+          ipAddress,
+          error: error.message,
+        },
+        'Socket authentication failed.'
+      );
+
+      return next(
+        new Error('Unauthorized.')
+      );
     }
   });
 }

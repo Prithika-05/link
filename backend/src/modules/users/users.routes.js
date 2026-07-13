@@ -7,14 +7,21 @@ import { UsersController } from './users.controller.js';
 import {
   getCurrentUserSchema,
   getUserByIdSchema,
+  getUserByUsernameSchema,
   updateProfileSchema,
+  changePasswordSchema,
   searchUsersSchema,
 } from './users.schema.js';
 
-export default async function usersRoutes(fastify) {
-  const controller = new UsersController(fastify);
+export default async function usersRoutes(
+  fastify
+) {
+  const controller =
+    new UsersController(fastify);
 
-
+  /**
+   * Current authenticated user.
+   */
   fastify.get(
     '/me',
     {
@@ -25,7 +32,9 @@ export default async function usersRoutes(fastify) {
     controller.getCurrentUser
   );
 
-
+  /**
+   * Search users.
+   */
   fastify.get(
     '/search',
     {
@@ -36,6 +45,24 @@ export default async function usersRoutes(fastify) {
     controller.searchUsers
   );
 
+  /**
+   * Get user by username.
+   *
+   * Must come before "/:id".
+   */
+  fastify.get(
+    '/username/:username',
+    {
+      preHandler: [authenticate],
+
+      schema: getUserByUsernameSchema,
+    },
+    controller.getUserByUsername
+  );
+
+  /**
+   * Get user by ID.
+   */
   fastify.get(
     '/:id',
     {
@@ -46,6 +73,9 @@ export default async function usersRoutes(fastify) {
     controller.getUserById
   );
 
+  /**
+   * Update profile.
+   */
   fastify.patch(
     '/me',
     {
@@ -61,5 +91,25 @@ export default async function usersRoutes(fastify) {
       },
     },
     controller.updateProfile
+  );
+
+  /**
+   * Change password.
+   */
+  fastify.patch(
+    '/change-password',
+    {
+      preHandler: [authenticate],
+
+      schema: changePasswordSchema,
+
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: '1 hour',
+        },
+      },
+    },
+    controller.changePassword
   );
 }

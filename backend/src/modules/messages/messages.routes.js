@@ -11,9 +11,15 @@ import {
   markReadSchema,
 } from './messages.schema.js';
 
-export default async function messagesRoutes(fastify) {
-  const controller = new MessagesController(fastify);
+export default async function messagesRoutes(
+  fastify
+) {
+  const controller =
+    new MessagesController(fastify);
 
+  /**
+   * Send an encrypted message.
+   */
   fastify.post(
     '/',
     {
@@ -31,6 +37,9 @@ export default async function messagesRoutes(fastify) {
     controller.send
   );
 
+  /**
+   * Retrieve conversation history.
+   */
   fastify.get(
     '/:userId',
     {
@@ -48,22 +57,42 @@ export default async function messagesRoutes(fastify) {
     controller.conversation
   );
 
+  /**
+   * Mark a message as delivered.
+   */
   fastify.patch(
     '/:messageId/delivered',
     {
       preHandler: [authenticate],
 
       schema: markDeliveredSchema,
+
+      config: {
+        rateLimit: {
+          max: 120,
+          timeWindow: '1 minute',
+        },
+      },
     },
     controller.markDelivered
   );
 
+  /**
+   * Mark a message as read.
+   */
   fastify.patch(
     '/:messageId/read',
     {
       preHandler: [authenticate],
 
       schema: markReadSchema,
+
+      config: {
+        rateLimit: {
+          max: 120,
+          timeWindow: '1 minute',
+        },
+      },
     },
     controller.markRead
   );
