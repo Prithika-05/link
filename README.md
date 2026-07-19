@@ -1,175 +1,81 @@
-# Link Me - End-to-End Encrypted Web Messenger
+## Security and Testing Contribution (feature/security branch)
 
-Link Me is a browser-based messaging app built for our Computer Systems Security module. The central idea is simple: two people can message each other, and the server never sees the content of any message. All encryption happens in the browser using the Web Crypto API. The backend exists only to route ciphertext and manage accounts, and it is treated as a potential adversary in our threat model.
+This section covers the security engineering, validation, and testing work built on the `feature/security` branch.
 
----
+### What's here
 
-## Table of Contents
+A hardened security layer sitting on top of the existing backend, plus a full test suite that verifies the security properties actually hold at the code level. Around 90 tests total, all passing on every push and pull request via GitHub Actions.
 
-1. [What It Does](#what-it-does)
-2. [Encryption Flow](#encryption-flow)
-3. [Threat Model](#threat-model)
-4. [Tech Stack](#tech-stack)
-5. [Repo Layout](#repo-layout)
-6. [Deployment](#deployment)
-7. [AI Attribution](#ai-attribution)
+### Tests written
 
----
+Six test files organised by purpose.
 
-## What It Does
+**Unit tests** in `backend/tests/unit/`:
+- `auth.schema.test.js` — validates the register and login schemas reject weak passwords, malformed emails, unknown fields, and oversized inputs
+- `messages.schema.test.js` — validates the send-message schema enforces the ciphertext-only API contract
+- `keys.schema.test.js` — validates the public-key upload schema only accepts ECDH-P256 and rejects any attempt to upload a private key
+- `auth.tokens.test.js` — validates the TokenService signs JWTs correctly, produces fresh identifiers per token, and interacts with the Redis blacklist as expected
+- `security-validators.test.js` — validates the custom AJV validators against homograph attacks, null byte injection, non-base64 payloads, and control characters
+- `strict-schemas.test.js` — validates the layered strict schemas close every documented gap in the base schemas
 
-- Users register with a username and password. On registration, an ECDH P-256 key pair is generated in the browser.
-- The public key is published to the user's personal GitHub Pages site. The private key never leaves the browser.
-- To start a conversation, you enter the other person's GitHub Pages URL. The app fetches their public key directly from there.
-- For each message sent, a fresh ephemeral ECDH key pair is generated. A shared secret is derived via ECDH, then used to derive an AES-GCM key via HKDF. The message is encrypted with that key, and the ephemeral public key is sent alongside the ciphertext so the recipient can derive the same secret.
-- The server stores and forwards ciphertext only. It cannot decrypt anything.
-- WebSockets handle real-time delivery notifications so the UI updates without polling.
+**Security tests** in `backend/tests/security/`:
+- `no-plaintext.test.js` — proves the server never persists plaintext, even if a caller tries to sneak it in via unexpected fields. This is the automated proof of the core security claim.
+- `password-hashing.test.js` — proves passwords are bcrypt-hashed at cost 12, salted, and never stored in plaintext
+- `attack-payloads.test.js` — fires OWASP Top 10 attack payloads (SQL injection, XSS, prototype pollution, path traversal, NoSQL operator injection, oversized inputs) at the real schemas and documents which are rejected and where the gaps are
+- `cover-traffic.test.js` — proves the cover traffic endpoint is indistinguishable from the real message endpoint in every observable
 
----
+### Custom validators added
 
-## Encryption Flow
+Four AJV custom validators in `backend/src/validators/security-validators.js`:
 
-This is the per-message flow, step by step:
+- `strictBase64` — rejects malformed base64 payloads that would pass a naive regex
+- `safeUsername` — blocks Cyrillic homograph impersonation attacks by restricting usernames to lowercase ASCII plus dash and underscore
+- `hexFingerprint` — enforces lowercase hex within a length range for cryptographic fingerprints
+- `rejectControlChars` — blocks null bytes, newlines, tabs, and other injection primitives
 
-```
-Sender                                    Recipient
-------                                    ---------
-1. Fetch the recipient's public key
-   from their GitHub Pages URL
+### Strict schema layer
 
-2. Generate ephemeral ECDH key pair
-   (new pair per message)
+A hardened set of schemas in `backend/src/validators/strict-schemas.js` built on top of the base schemas without modifying them. Adds:
 
-3. ECDH(ephemeral private, recipient public)
-   - raw shared secret
+- Stricter password minimum length (12 characters)
+- Base64 shape enforcement on every crypto field
+- Correct size enforcement on IV (12 bytes) and auth tag (16 bytes)
+- Ciphertext size caps to prevent DoS
+- Rejection of control characters in identifiers
+- Separate `strictSendMediaMessageSchema` for encrypted image messages with a larger ciphertext cap while keeping the mime type inside the encrypted payload for metadata privacy
 
-4. HKDF(shared secret, salt, "Link v1")
-   - 256-bit AES-GCM key
+### Cover traffic
 
-5. Generate a random 12-byte IV
+A metadata-privacy feature in `backend/src/modules/messages/cover.routes.js`. The endpoint `POST /messages/cover` accepts payloads identical in shape to real messages but silently discards them.
 
-6. AES-GCM encrypt(plaintext, key, IV)
-   - ciphertext + auth tag
+Why it matters: even with content encrypted, the server can otherwise learn when Alice and Bob are actively talking based on message timing. Cover traffic breaks this by making cover messages network-indistinguishable from real ones. The server cannot tell them apart, so it cannot use timing patterns to infer conversation activity.
 
-7. Send to server:
-   { ephemeralPublicKey, IV, ciphertext }
-                                          8. Receive ciphertext bundle
+The backend endpoint, schema enforcement, and rate limiting are all in place. The frontend piece (generating cover messages on a fixed schedule) is a follow-on for the client team.
 
-                                          9. ECDH(recipient private,
-                                             ephemeralPublicKey)
-                                             - same shared secret
+### CI pipeline
 
-                                          10. HKDF(shared secret, salt, "Link v1")
-                                              - same AES-GCM key
+GitHub Actions workflow in `.github/workflows/backend-tests.yml`. Runs the full test suite on every push and pull request. Any regression in the security properties causes the workflow to fail, which blocks the merge if branch protection is enabled on `main`.
 
-                                          11. AES-GCM decrypt(ciphertext, key, IV)
-                                              - plaintext
-```
+### What this contribution proves
 
-**Why ephemeral keys per message?**
-If a long-term private key is ever compromised, past messages stay protected because each one was encrypted under a different derived key. This gives forward secrecy at the message level.
+Together, the tests and schema layer verify:
 
-**Why GitHub Pages for public keys?**
-It avoids trusting the server as a key directory. If the server hosted public keys, a malicious server could substitute its own key and run a man-in-the-middle attack. GitHub Pages gives each user a URL they control independently of the Link server.
+1. The server never sees plaintext message content
+2. The server never stores plaintext passwords
+3. The API rejects SQL injection, XSS, prototype pollution, and homograph attacks
+4. JWT sessions can be revoked and revocation is enforced on every request
+5. Every message send has cryptographic integrity fields (IV, auth tag, ephemeral key)
+6. The server cannot distinguish cover traffic from real messages based on any observable
+7. Any future regression in these properties is caught automatically by CI
 
-**Key derivation details:**
-- Curve: P-256
-- KDF: HKDF with SHA-256, info string `"Link v1"`
-- Symmetric cipher: AES-GCM, 256-bit key, 96-bit IV (randomly generated per message)
-- All operations use the browser's native `window.crypto.subtle` API
+### What's ready but not yet deployed
 
----
+- The strict schemas are ready to swap into routes when the team is aligned
+- The cover traffic endpoint is registered and tested but needs frontend integration to be functional end to end
+- The media message schema is ready for the frontend image upload feature to be built against it
 
-## Threat Model
+### Documentation
 
-**What we protect against:**
-
-| Threat | Mitigation |
-|---|---|
-| Curious/compromised server reading messages | All encryption in browser; server only sees ciphertext |
-| Replay attacks | Each message has a unique IV and ephemeral key |
-| Stolen long-term private key exposing past messages | Ephemeral keys per message (forward secrecy) |
-| JWT theft enabling session hijacking | Short-lived JWTs + Redis blacklist on logout |
-| Brute-force login | bcrypt password hashing + rate limiting on auth endpoints |
-| Key substitution by server | Public keys hosted on user-controlled GitHub Pages, not server |
-
-**What we do NOT protect against (out of scope):**
-
-- **Endpoint compromise.** If the recipient's device or browser is compromised, an attacker can read decrypted messages. This is true of all E2EE systems.
-- **Key verification / TOFU.** We do not implement a safety number or fingerprint comparison mechanism. A user could point their Link profile at someone else's GitHub Pages URL. In a production system, you would want out-of-band key verification.
-- **Metadata.** The server knows who is talking to whom, when, and how often. Only the message content is hidden.
-- **Denial of service.** Rate limiting is basic and not production-grade.
-- **GitHub Pages availability.** If a user's GitHub Pages site is down, their public key cannot be fetched.
-
----
-
-## Tech Stack
-
-**Backend**
-- Node.js + Express (CommonJS)
-- PostgreSQL via Neon (hosted)
-- Prisma ORM
-- Redis via Upstash (JWT blacklisting)
-- WebSockets (`ws` library) for real-time notifications
-
-**Frontend**
-- React + Vite
-- Web Crypto API (built into modern browsers, no third-party crypto library)
-
-**Infrastructure**
-- Backend hosted on Render
-- Frontend hosted on Vercel
-- Public keys hosted on each user's GitHub Pages
-
----
-
-## Repo Layout
-
-```
-link/
-├── backend/
-│   ├── prisma/
-│   │   └── schema.prisma          # Database schema
-│   ├── src/
-│   │   ├── routes/
-│   │   │   ├── auth.js            # Register, login, logout
-│   │   │   └── messages.js        # Send, fetch messages
-│   │   ├── middleware/
-│   │   │   ├── auth.js            # JWT verification middleware
-│   │   │   └── rateLimit.js       # Rate limiting
-│   │   ├── services/
-│   │   │   ├── redis.js           # JWT blacklist logic
-│   │   │   └── websocket.js       # WebSocket notification handler
-│   │   └── index.js               # Express app entry point
-│   ├── .env.example
-│   └── package.json
-│
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── components/            # React UI components
-│   │   ├── crypto/
-│   │   │   └── messaging.js       # All Web Crypto API logic
-│   │   ├── api/                   # API client functions
-│   │   ├── pages/                 # Route-level components
-│   │   └── main.jsx
-│   ├── .env.example
-│   └── package.json
-│
-└── README.md
-```
-
----
-
-## Deployment
-
-| Service | Purpose | Free tier used |
-|---|---|---|
-| Render | Backend (Node/Express) | Yes |
-| Vercel | Frontend (React/Vite) | Yes |
-| Neon | PostgreSQL | Yes |
-| Upstash | Redis | Yes |
-
-Environment variables for the deployed backend and frontend follow the same structure as the local `.env` files above, set through each platform's dashboard.
-
----
+- `backend/tests/` — every test is commented with its purpose and the attack class it verifies
+- Schema files are commented with rationale for every design decision
+- Commit history on `feature/security` shows the incremental development of every piece
