@@ -4,6 +4,9 @@
 // Prove that the strict schemas close every gap we documented in
 // attack-payloads.test.js. Where the base schemas were permissive, these
 // strict schemas explicitly reject the attack.
+//
+// Also covers the media message schema which allows larger ciphertext
+// for encrypted image payloads while keeping all other constraints.
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
@@ -11,12 +14,14 @@ import {
   strictRegisterSchema,
   strictLoginSchema,
   strictSendMessageSchema,
+  strictSendMediaMessageSchema,
   strictUploadKeySchema,
 } from '../../src/validators/strict-schemas.js';
 
 let validateRegister;
 let validateLogin;
 let validateSend;
+let validateSendMedia;
 let validateUploadKey;
 
 beforeAll(() => {
@@ -24,6 +29,7 @@ beforeAll(() => {
   validateRegister = ajv.compile(strictRegisterSchema.body);
   validateLogin = ajv.compile(strictLoginSchema.body);
   validateSend = ajv.compile(strictSendMessageSchema.body);
+  validateSendMedia = ajv.compile(strictSendMediaMessageSchema.body);
   validateUploadKey = ajv.compile(strictUploadKeySchema.body);
 });
 
@@ -35,7 +41,6 @@ const validRegister = {
 
 const validSend = {
   receiverId: 'clh1234567890abcdefg',
-  // Legitimate base64 shapes at correct lengths for each field.
   ciphertext: 'SGVsbG8gV29ybGQhIQ==',
   iv: 'AAECAwQFBgcICQoL',
   authTag: 'AAECAwQFBgcICQoLDA0ODw==',
@@ -100,7 +105,6 @@ describe('strictRegisterSchema closes the gaps in base register schema', () => {
   });
 
   it('enforces stronger minimum password length (12 chars)', () => {
-    // Base schema allowed 8, strict schema requires 12.
     expect(
       validateRegister({
         ...validRegister,
@@ -248,5 +252,83 @@ describe('strictUploadKeySchema closes gaps in base keys schema', () => {
         fingerprint: 'a'.repeat(64),
       })
     ).toBe(true);
+  });
+});
+
+// ---- Media message schema tests -----------------------------------------
+
+describe('strictSendMediaMessageSchema for encrypted image/media messages', () => {
+  const validMedia = {
+    receiverId: 'clh1234567890abcdefg',
+    ciphertext: 'A'.repeat(200_000),
+    iv: 'AAECAwQFBgcICQoL',
+    authTag: 'AAECAwQFBgcICQoLDA0ODw==',
+    ephemeralPublicKey: 'A'.repeat(88),
+  };
+
+  it('accepts a media-sized ciphertext (larger than text schema allows)', () => {
+    expect(validateSendMedia(validMedia)).toBe(true);
+  });
+
+  it('accepts ciphertext just under the media cap', () => {
+    expect(
+      validateSendMedia({
+        ...validMedia,
+        ciphertext: 'A'.repeat(419_996),
+      })
+    ).toBe(true);
+  });
+
+  it('rejects ciphertext larger than the media cap (DoS prevention)', () => {
+    expect(
+      validateSendMedia({
+        ...validMedia,
+        ciphertext: 'A'.repeat(420_001),
+      })
+    ).toBe(false);
+  });
+
+  it('rejects non-base64 ciphertext', () => {
+    expect(
+      validateSendMedia({
+        ...validMedia,
+        ciphertext: 'not real base64!@#$',
+      })
+    ).toBe(false);
+  });
+
+  it('rejects unexpected properties like an unencrypted mimeType', () => {
+    // The mime type must be inside the encrypted payload, not a top-level
+    // field. This test enforces that at the schema layer.
+    expect(
+      validateSendMedia({
+        ...validMedia,
+        mimeType: 'image/jpeg',
+      })
+    ).toBe(false);
+  });
+
+  it('rejects control chars in receiverId', () => {
+    expect(
+      validateSendMedia({
+        ...validMedia,
+        receiverId: 'clh1234567890abcd\x00',
+      })
+    ).toBe(false);
+  });
+
+  it('has the same required fields as the text message schema', () => {
+    const requiredFields = [
+      'receiverId',
+      'ciphertext',
+      'iv',
+      'authTag',
+      'ephemeralPublicKey',
+    ];
+    for (const field of requiredFields) {
+      const invalid = { ...validMedia };
+      delete invalid[field];
+      expect(validateSendMedia(invalid)).toBe(false);
+    }
   });
 });

@@ -157,3 +157,66 @@ export const strictUploadKeySchema = {
     },
   },
 };
+// ---- Strict Send Media Message ------------------------------------------
+//
+// Separate schema for messages that carry small encrypted media (images,
+// short audio clips, etc). Same base structure as text messages but with
+// a larger ciphertext cap.
+//
+// The maximum decoded size is 300KB (roughly 400KB base64). Images should
+// be compressed on the client to fit under this limit before encryption.
+// Anything larger belongs on a dedicated blob upload endpoint that this
+// project does not currently implement.
+//
+// Note: the mime type is NOT a schema field. The client must encode the
+// mime type inside the encrypted payload before encryption, so the server
+// never learns whether a message carries text or an image. This preserves
+// the metadata privacy property.
+
+export const strictSendMediaMessageSchema = {
+  body: {
+    type: 'object',
+    required: [
+      'receiverId',
+      'ciphertext',
+      'iv',
+      'authTag',
+      'ephemeralPublicKey',
+    ],
+    additionalProperties: false,
+    properties: {
+      receiverId: {
+        type: 'string',
+        minLength: 20,
+        maxLength: 40,
+        rejectControlChars: true,
+      },
+      // Larger cap than text: 400KB base64 = ~300KB raw. Enough for a
+      // compressed thumbnail-quality image, not enough to DoS the server.
+      ciphertext: {
+        type: 'string',
+        minLength: 1,
+        maxLength: 420_000,
+        strictBase64: true,
+      },
+      iv: {
+        type: 'string',
+        minLength: 16,
+        maxLength: 24,
+        strictBase64: true,
+      },
+      authTag: {
+        type: 'string',
+        minLength: 20,
+        maxLength: 28,
+        strictBase64: true,
+      },
+      ephemeralPublicKey: {
+        type: 'string',
+        minLength: 80,
+        maxLength: 500,
+        strictBase64: true,
+      },
+    },
+  },
+};
