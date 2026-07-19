@@ -6,6 +6,7 @@ import {
   sendMessageSchema,
   conversationSchema,
 } from './messages.schema.js';
+import coverRoutes from './cover.routes.js';
 
 
 
@@ -50,4 +51,6 @@ export default async function messageRoutes(fastify) {
     );
     }
   );
+  await coverRoutes(fastify);
 }
+  
