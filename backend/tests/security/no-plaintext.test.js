@@ -61,7 +61,7 @@ describe('the server never sees plaintext', () => {
   });
 
   it('the DB schema shape sent to Prisma contains only the expected fields', () => {
-   
+
     const allowedFields = new Set([
       'senderId',
       'receiverId',

@@ -40,21 +40,16 @@ describe("sendMessageSchema", () => {
   });
 
   it("rejects when authTag is missing", () => {
-    // Without the auth tag we cannot verify integrity. The API refuses.
     const { authTag, ...rest } = validPayload;
     expect(validateSend(rest)).toBe(false);
   });
 
   it("rejects when ephemeralPublicKey is missing", () => {
-    // Without the sender's ephemeral public key, the receiver cannot derive
-    // the shared secret, so this message would be permanently unreadable.
     const { ephemeralPublicKey, ...rest } = validPayload;
     expect(validateSend(rest)).toBe(false);
   });
 
   it("rejects an unexpected property", () => {
-    // Someone trying to sneak plaintext in via an unexpected field, or trying
-    // to override senderId, would be blocked by additionalProperties: false.
     expect(
       validateSend({
         ...validPayload,

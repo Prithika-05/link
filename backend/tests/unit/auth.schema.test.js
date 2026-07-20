@@ -55,8 +55,6 @@ describe("registerSchema", () => {
   });
 
   it("rejects unexpected properties (additionalProperties: false)", () => {
-    // If additionalProperties leaked through, an attacker could try to inject
-    // fields like `isAdmin: true` and hope the service picks them up.
     const ok = validateRegister({
       username: "pramodh",
       email: "pramodh@example.com",
@@ -75,7 +73,6 @@ describe("registerSchema", () => {
   });
 
   it("rejects when password exceeds max length", () => {
-    // 129 characters, one over the limit
     const ok = validateRegister({
       username: "pramodh",
       email: "pramodh@example.com",

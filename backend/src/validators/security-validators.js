@@ -14,7 +14,8 @@
 
 // Strict base64: A-Z, a-z, 0-9, +, /, with optional = padding at the end.
 // Length must be a multiple of 4. This is the RFC 4648 alphabet.
-const BASE64_REGEX = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+const BASE64_REGEX =
+  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 // Safe username: lowercase letters, digits, dash, underscore.
 // Deliberately excludes Unicode to prevent homograph attacks
@@ -34,7 +35,7 @@ const CONTROL_CHAR_REGEX = /[\x00-\x1F\x7F]/;
 // These are the ones we test in tests/unit/security-validators.test.js.
 
 export function isStrictBase64(value) {
-  if (typeof value !== 'string') return false;
+  if (typeof value !== "string") return false;
   if (value.length === 0) return false;
   // Length must be a multiple of 4 for valid base64.
   if (value.length % 4 !== 0) return false;
@@ -42,19 +43,19 @@ export function isStrictBase64(value) {
 }
 
 export function isSafeUsername(value) {
-  if (typeof value !== 'string') return false;
+  if (typeof value !== "string") return false;
   if (value.length < 3 || value.length > 30) return false;
   return SAFE_USERNAME_REGEX.test(value);
 }
 
 export function isHexFingerprint(value, minLength = 32, maxLength = 128) {
-  if (typeof value !== 'string') return false;
+  if (typeof value !== "string") return false;
   if (value.length < minLength || value.length > maxLength) return false;
   return HEX_REGEX.test(value);
 }
 
 export function hasControlCharacters(value) {
-  if (typeof value !== 'string') return false;
+  if (typeof value !== "string") return false;
   return CONTROL_CHAR_REGEX.test(value);
 }
 
@@ -70,9 +71,9 @@ export function hasControlCharacters(value) {
 
 export function registerSecurityValidators(ajv) {
   ajv.addKeyword({
-    keyword: 'strictBase64',
-    type: 'string',
-    schemaType: 'boolean',
+    keyword: "strictBase64",
+    type: "string",
+    schemaType: "boolean",
     validate: (schemaValue, data) => {
       if (!schemaValue) return true;
       return isStrictBase64(data);
@@ -81,9 +82,9 @@ export function registerSecurityValidators(ajv) {
   });
 
   ajv.addKeyword({
-    keyword: 'safeUsername',
-    type: 'string',
-    schemaType: 'boolean',
+    keyword: "safeUsername",
+    type: "string",
+    schemaType: "boolean",
     validate: (schemaValue, data) => {
       if (!schemaValue) return true;
       return isSafeUsername(data);
@@ -92,9 +93,9 @@ export function registerSecurityValidators(ajv) {
   });
 
   ajv.addKeyword({
-    keyword: 'hexFingerprint',
-    type: 'string',
-    schemaType: 'object',
+    keyword: "hexFingerprint",
+    type: "string",
+    schemaType: "object",
     validate: (schemaValue, data) => {
       const min = schemaValue.minLength || 32;
       const max = schemaValue.maxLength || 128;
@@ -104,9 +105,9 @@ export function registerSecurityValidators(ajv) {
   });
 
   ajv.addKeyword({
-    keyword: 'rejectControlChars',
-    type: 'string',
-    schemaType: 'boolean',
+    keyword: "rejectControlChars",
+    type: "string",
+    schemaType: "boolean",
     validate: (schemaValue, data) => {
       if (!schemaValue) return true;
       return !hasControlCharacters(data);
