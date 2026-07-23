@@ -12,16 +12,22 @@ import {truncateId} from '../utils/formatters'
 export default function ContactsPage() {
     const dispatch = useDispatch()
     const navigate = useNavigate()
+
     const contacts = useSelector((state) => state.contacts.items)
+
     const [query, setQuery] = useState('')
     const [showAdd, setShowAdd] = useState(false)
     const [fingerprintContact, setFingerprintContact] = useState(null)
 
     const filtered = useMemo(() => {
         const normalized = query.trim().toLowerCase()
+
         if (!normalized) return contacts
+
         return contacts.filter((contact) =>
-            `${contact.name} ${contact.userId}`.toLowerCase().includes(normalized),
+            `${contact.name} ${contact.userId}`
+                .toLowerCase()
+                .includes(normalized),
         )
     }, [contacts, query])
 
@@ -31,6 +37,7 @@ export default function ContactsPage() {
 
     const deleteContact = (contact) => {
         if (!window.confirm(`Remove ${contact.name} from this browser?`)) return
+
         dispatch(removeContact(contact.userId))
     }
 
@@ -41,61 +48,89 @@ export default function ContactsPage() {
                     <div>
                         <span className="eyebrow">YOUR NETWORK</span>
                         <h1>Contacts</h1>
-                        <p>Contacts are saved locally because the backend has no user-list API.</p>
+                        <p>
+                            Contacts are saved locally because the backend has no
+                            user-list API.
+                        </p>
                     </div>
+
                     <Button icon="plus" onClick={() => setShowAdd(true)}>
                         New contact
                     </Button>
                 </header>
+
                 <section className="contacts-card">
                     <label className="large-search">
-                        <Icon name="search" size={20}/>
+                        <Icon name="search" size={20} />
+
                         <input
                             value={query}
                             onChange={(event) => setQuery(event.target.value)}
                             placeholder="Search saved contacts or user IDs"
                         />
                     </label>
+
                     <div className="contacts-results">
                         <div className="list-heading">
                             <span>VERIFIED PUBLIC-KEY CONTACTS</span>
                             <span>{filtered.length} results</span>
                         </div>
+
                         {filtered.map((contact) => (
-                            <article className="contact-row" key={contact.userId}>
+                            <article
+                                className="contact-row"
+                                key={contact.userId}
+                            >
                                 <Avatar
                                     initials={contact.initials}
                                     color={contact.color}
                                     online={contact.online}
                                 />
+
                                 <div>
                                     <strong>{contact.name}</strong>
+
                                     <small title={contact.userId}>
-                                        ID: {truncateId(contact.userId, 18)} · {contact.algorithm}
+                                        ID:{' '}
+                                        {truncateId(contact.userId, 18)} ·{' '}
+                                        {contact.algorithm}
                                     </small>
                                 </div>
+
                                 <button
                                     className="fingerprint-button"
-                                    onClick={() => setFingerprintContact(contact)}
+                                    onClick={() =>
+                                        setFingerprintContact(contact)
+                                    }
                                 >
-                                    <Icon name="shield" size={17}/> Fingerprint
+                                    <Icon name="shield" size={17} /> Fingerprint
                                 </button>
-                                <button className="start-chat" onClick={() => startChat(contact)}>
-                                    Message <Icon name="arrowRight" size={16}/>
+
+                                <button
+                                    className="start-chat"
+                                    onClick={() => startChat(contact)}
+                                >
+                                    Message <Icon name="arrowRight" size={16} />
                                 </button>
+
                                 <button
                                     className="contact-remove"
                                     onClick={() => deleteContact(contact)}
                                     aria-label={`Remove ${contact.name}`}
                                 >
-                                    <Icon name="x" size={16}/>
+                                    <Icon name="x" size={16} />
                                 </button>
                             </article>
                         ))}
+
                         {filtered.length === 0 && (
                             <EmptyState
                                 icon="users"
-                                title={contacts.length === 0 ? 'No contacts saved' : 'No matches'}
+                                title={
+                                    contacts.length === 0
+                                        ? 'No contacts saved'
+                                        : 'No matches'
+                                }
                                 description={
                                     contacts.length === 0
                                         ? 'Add someone using the exact user ID returned by their backend account.'
@@ -103,7 +138,11 @@ export default function ContactsPage() {
                                 }
                                 action={
                                     contacts.length === 0 ? (
-                                        <Button onClick={() => setShowAdd(true)}>Add first contact</Button>
+                                        <Button
+                                            onClick={() => setShowAdd(true)}
+                                        >
+                                            Add first contact
+                                        </Button>
                                     ) : null
                                 }
                             />
@@ -112,16 +151,25 @@ export default function ContactsPage() {
                 </section>
             </div>
 
-            {showAdd && <AddContactModal onClose={() => setShowAdd(false)}/>}
+            {showAdd && (
+                <AddContactModal onClose={() => setShowAdd(false)} />
+            )}
+
             {fingerprintContact && (
                 <Modal
                     title={`${fingerprintContact.name} fingerprint`}
                     onClose={() => setFingerprintContact(null)}
                 >
                     <div className="fingerprint-modal-content">
-                        <code>{formatFingerprint(fingerprintContact.fingerprint)}</code>
+                        <code>
+                            {formatFingerprint(
+                                fingerprintContact.fingerprint,
+                            )}
+                        </code>
+
                         <p>
-                            Compare this fingerprint through a trusted channel before sending sensitive information.
+                            Compare this fingerprint through a trusted channel
+                            before sending sensitive information.
                         </p>
                     </div>
                 </Modal>

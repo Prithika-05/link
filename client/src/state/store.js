@@ -32,10 +32,12 @@ store.subscribe(() => {
         document.documentElement.dataset.theme = state.settings.theme
     }
 
-    if (state.auth.user?.id) {
+    if (state.auth.user?.id && state.contacts.loaded) {
         const contactsJson = JSON.stringify(state.contacts.items)
+
         if (contactsJson !== previousContacts) {
             previousContacts = contactsJson
+
             saveStoredContacts(state.auth.user.id, state.contacts.items)
         }
     }

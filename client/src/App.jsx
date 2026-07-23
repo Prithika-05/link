@@ -20,7 +20,17 @@ export default function App() {
     }, [dispatch])
 
     useEffect(() => {
-        if (userId) dispatch(loadContacts(userId))
+        if (userId) {
+            console.log("Loading contacts for:", userId)
+            dispatch(loadContacts(userId))
+        }
+    }, [dispatch, userId])
+
+    useEffect(() => {
+        if (userId) {
+            console.log("Current logged in user:", userId)
+            dispatch(loadContacts(userId))
+        }
     }, [dispatch, userId])
 
     useEffect(() => {

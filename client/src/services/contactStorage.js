@@ -8,14 +8,19 @@ export function loadStoredContacts(ownerId) {
     if (!ownerId) return []
 
     try {
-        const value = window.localStorage.getItem(storageKey(ownerId))
+        const value = localStorage.getItem(storageKey(ownerId))
         return value ? JSON.parse(value) : []
-    } catch {
+    } catch (error) {
+        console.error(error)
         return []
     }
 }
 
 export function saveStoredContacts(ownerId, contacts) {
     if (!ownerId) return
-    window.localStorage.setItem(storageKey(ownerId), JSON.stringify(contacts))
+
+    const key = storageKey(ownerId)
+
+    localStorage.setItem(key, JSON.stringify(contacts))
+
 }

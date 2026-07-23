@@ -114,11 +114,17 @@ const contactsSlice = createSlice({
             })
             .addCase(addContact.fulfilled, (state, action) => {
                 state.status = 'ready'
+
                 const index = state.items.findIndex(
                     (contact) => contact.userId === action.payload.userId,
                 )
-                if (index >= 0) state.items[index] = action.payload
-                else state.items.unshift(action.payload)
+
+                if (index >= 0) {
+                    state.items[index] = action.payload
+                } else {
+                    state.items.unshift(action.payload)
+                }
+
             })
             .addCase(addContact.rejected, (state, action) => {
                 state.status = 'error'
