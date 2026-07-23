@@ -35,56 +35,49 @@ export class AuthService {
    * Register a new user.
    */
   async register({ username, email, password }) {
-    return this.prisma.$transaction(async (tx) => {
-      const existingEmail = await tx.user.findUnique({
-        where: { email },
-      });
+      const passwordHash = await hashPassword(password);
 
-      if (existingEmail) {
-        throw new ConflictError(
-          'Email is already registered.'
-        );
-      }
+      const user = await this.prisma.$transaction(async (tx) => {
+          const existingEmail = await tx.user.findUnique({
+              where: { email },
+          });
 
-      const existingUsername =
-        await tx.user.findUnique({
-          where: { username },
-        });
+          if (existingEmail) {
+              throw new ConflictError('Email is already registered.');
+          }
 
-      if (existingUsername) {
-        throw new ConflictError(
-          'Username is already taken.'
-        );
-      }
+          const existingUsername = await tx.user.findUnique({
+              where: { username },
+          });
 
-      const passwordHash =
-        await hashPassword(password);
+          if (existingUsername) {
+              throw new ConflictError('Username is already taken.');
+          }
 
-      const user = await tx.user.create({
-        data: {
-          username,
-          email,
-          passwordHash,
-        },
-
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          createdAt: true,
-        },
+          return tx.user.create({
+              data: {
+                  username,
+                  email,
+                  passwordHash,
+              },
+              select: {
+                  id: true,
+                  username: true,
+                  email: true,
+                  createdAt: true,
+              },
+          });
       });
 
       await this.auditService.log({
-        userId: user.id,
-        action: AUDIT_ACTION.REGISTER,
+          userId: user.id,
+          action: AUDIT_ACTION.REGISTER,
       });
 
       return {
-        message: 'User registered successfully.',
-        user,
+          message: 'User registered successfully.',
+          user,
       };
-    });
   }
 
   /**

@@ -1,25 +1,5 @@
 // src/plugins/rate-limit.js
 
-/**
- * ---------------------------------------------------------
- * Rate Limit Plugin
- * ---------------------------------------------------------
- * Registers Fastify Rate Limit.
- *
- * Global rate limiting is disabled.
- * Individual routes configure their own limits based on
- * their security requirements.
- *
- * Examples:
- *
- * Login
- * Register
- * Public Key Upload
- * Send Message
- *
- * ---------------------------------------------------------
- */
-
 import fp from 'fastify-plugin';
 import fastifyRateLimit from '@fastify/rate-limit';
 
@@ -32,7 +12,7 @@ async function rateLimitPlugin(fastify) {
   await fastify.register(fastifyRateLimit, {
 
     global: false,
-    max: 100,
+    max: 50,
     timeWindow: '1 minute',
 
     allowList() {
