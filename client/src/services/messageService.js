@@ -1,4 +1,4 @@
-import {apiClient} from '../../../../test/src/api/httpClient.js'
+import {apiClient} from '../api/httpClient'
 
 export const messageService = {
     async sendMessage(payload) {

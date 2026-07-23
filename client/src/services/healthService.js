@@ -1,4 +1,4 @@
-import {backendClient} from '../../../../test/src/api/httpClient.js'
+import {backendClient} from '../api/httpClient'
 
 export const healthService = {
     async check() {

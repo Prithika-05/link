@@ -1,8 +1,8 @@
-import {apiClient} from '../../../../test/src/api/httpClient.js'
+import {apiClient} from '../api/httpClient'
 
 export const userService = {
     async getCurrentUser() {
         const {data} = await apiClient.get('/users/me')
-        return data.user
+        return data.data
     },
 }

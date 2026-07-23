@@ -8,5 +8,5 @@ export const environment = Object.freeze({
     backendUrl,
     apiBaseUrl: `${backendUrl}/api`,
     socketUrl: backendUrl,
-    requestTimeoutMs: Number(import.meta.env.VITE_API_TIMEOUT_MS) || 15000,
+    requestTimeoutMs: Number(import.meta.env.VITE_API_TIMEOUT_MS) || 1500000,
 })
