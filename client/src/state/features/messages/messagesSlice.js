@@ -75,7 +75,20 @@ export const sendEncryptedMessage = createAsyncThunk(
                 receiverPublicKey: publicKey.key,
                 plaintext: text,
             })
+            const messageId = crypto.randomUUID()
+
+            const timestamp = Date.now()
+
+            const nonce = btoa(
+                String.fromCharCode(
+                    ...crypto.getRandomValues(new Uint8Array(32))
+                )
+            )
+
             const apiPayload = {
+                messageId,
+                timestamp,
+                nonce,
                 receiverId: contactId,
                 ...encryptedPayload,
             }
@@ -94,7 +107,7 @@ export const sendEncryptedMessage = createAsyncThunk(
                 contactId,
                 transport,
                 message: {
-                    id: response.messageId,
+                    id: messageId,
                     senderId: currentUserId,
                     receiverId: contactId,
                     ...encryptedPayload,

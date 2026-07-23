@@ -2,7 +2,11 @@ import {createAsyncThunk, createSlice} from '@reduxjs/toolkit'
 import {getApiErrorMessage} from '../../../api/apiError.js'
 import {keyService} from '../../../services/keyService.js'
 import {loadStoredContacts} from '../../../services/contactStorage.js'
-import {colorFromId, fallbackContactName, getInitials,} from '../../../utils/contact.js'
+import {
+    colorFromId,
+    fallbackContactName,
+    getInitials,
+} from '../../../utils/contact.js'
 
 export const loadContacts = createAsyncThunk(
     'contacts/loadContacts',
@@ -26,6 +30,7 @@ export const addContact = createAsyncThunk(
 
         try {
             const publicKey = await keyService.getPublicKey(normalizedId)
+
             return {
                 id: normalizedId,
                 userId: normalizedId,
@@ -54,9 +59,11 @@ export const ensureIncomingContact = createAsyncThunk(
         const existing = getState().contacts.items.find(
             (contact) => contact.userId === userId,
         )
+
         if (existing) return existing
 
         const name = fallbackContactName(userId)
+
         return {
             id: userId,
             userId,
@@ -71,47 +78,68 @@ export const ensureIncomingContact = createAsyncThunk(
     },
 )
 
+const initialState = {
+    items: [],
+    status: 'idle',
+    error: null,
+    loaded: false,
+}
+
 const contactsSlice = createSlice({
     name: 'contacts',
-    initialState: {
-        items: [],
-        status: 'idle',
-        error: null,
-    },
+    initialState,
     reducers: {
         removeContact(state, action) {
             state.items = state.items.filter(
                 (contact) => contact.userId !== action.payload,
             )
         },
+
         setContactPresence(state, action) {
             const contact = state.items.find(
                 (item) => item.userId === action.payload.userId,
             )
-            if (contact) contact.online = action.payload.online
+
+            if (contact) {
+                contact.online = action.payload.online
+            }
         },
+
         clearContactsError(state) {
             state.error = null
         },
+
         resetContacts(state) {
             state.items = []
             state.status = 'idle'
             state.error = null
+            state.loaded = false
         },
     },
+
     extraReducers: (builder) => {
         builder
             .addCase(loadContacts.pending, (state) => {
                 state.status = 'loading'
             })
+
             .addCase(loadContacts.fulfilled, (state, action) => {
                 state.status = 'ready'
                 state.items = action.payload
+                state.loaded = true
             })
+
+            .addCase(loadContacts.rejected, (state, action) => {
+                state.status = 'error'
+                state.error = action.payload || null
+                state.loaded = true
+            })
+
             .addCase(addContact.pending, (state) => {
                 state.status = 'saving'
                 state.error = null
             })
+
             .addCase(addContact.fulfilled, (state, action) => {
                 state.status = 'ready'
 
@@ -124,17 +152,21 @@ const contactsSlice = createSlice({
                 } else {
                     state.items.unshift(action.payload)
                 }
-
             })
+
             .addCase(addContact.rejected, (state, action) => {
                 state.status = 'error'
                 state.error = action.payload
             })
+
             .addCase(ensureIncomingContact.fulfilled, (state, action) => {
                 const exists = state.items.some(
                     (contact) => contact.userId === action.payload.userId,
                 )
-                if (!exists) state.items.unshift(action.payload)
+
+                if (!exists) {
+                    state.items.unshift(action.payload)
+                }
             })
     },
 })
@@ -145,4 +177,5 @@ export const {
     clearContactsError,
     resetContacts,
 } = contactsSlice.actions
+
 export default contactsSlice.reducer

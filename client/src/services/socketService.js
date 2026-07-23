@@ -21,7 +21,10 @@ class SocketService {
             this.socket.auth = {token}
         }
 
-        this.socket.connect()
+        if (!this.socket.connected) {
+            this.socket.connect()
+        }
+
         return this.socket
     }
 

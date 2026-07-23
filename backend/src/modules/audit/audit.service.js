@@ -6,14 +6,22 @@ export class AuditService {
     this.logger = fastify.log;
   }
 
+  /**
+   * Write an audit log.
+   *
+   * If a Prisma transaction client is supplied, the audit log
+   * is written using that transaction. Otherwise the global
+   * Prisma client is used.
+   */
   async log({
     userId = null,
     action,
     ipAddress = null,
     userAgent = null,
+    prisma = this.prisma,
   }) {
     try {
-      await this.prisma.auditLog.create({
+      await prisma.auditLog.create({
         data: {
           userId,
           action,

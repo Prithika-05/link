@@ -10,7 +10,7 @@ import { registerPresenceGateway } from './gateways/presence.gateway.js';
 import { registerMessageGateway } from './gateways/message.gateway.js';
 import { registerReceiptHandlers } from './gateways/receipt.gateway.js';
 import { registerTypingHandlers } from './gateways/typing.gateway.js';
-
+import { connectionManager } from './connection.manager.js';
 import { setupRedisAdapter } from './redis.adapter.js';
 
 let io = null;
@@ -78,36 +78,33 @@ export async function initializeSocket(
    * Register per-socket handlers.
    */
   io.on('connection', (socket) => {
-    registerReceiptHandlers(
-      socket,
-      io,
-      fastify
-    );
+      const userId = socket.data.user.sub;
 
-    registerTypingHandlers(
-      socket,
-      io,
-      fastify
-    );
+      connectionManager.add(userId, socket);
 
-    fastify.log.debug(
-      {
-        socketId: socket.id,
-        userId: socket.data.user.sub,
-      },
-      'Socket connected.'
-    );
+      registerReceiptHandlers(socket, io, fastify);
+      registerTypingHandlers(socket, io, fastify);
 
-    socket.on('disconnect', (reason) => {
       fastify.log.debug(
-        {
-          socketId: socket.id,
-          userId: socket.data.user.sub,
-          reason,
-        },
-        'Socket disconnected.'
+          {
+              socketId: socket.id,
+              userId,
+          },
+          'Socket connected.'
       );
-    });
+
+      socket.on('disconnect', (reason) => {
+          connectionManager.remove(userId, socket);
+
+          fastify.log.debug(
+              {
+                  socketId: socket.id,
+                  userId,
+                  reason,
+              },
+              'Socket disconnected.'
+          );
+      });
   });
 
   fastify.log.info(

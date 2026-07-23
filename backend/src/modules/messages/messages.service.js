@@ -168,6 +168,7 @@ export class MessageService {
         });
 
       await this.auditService.log({
+        prisma: tx,
         userId: senderId,
         action: AUDIT_ACTION.MESSAGE_SENT,
       });
