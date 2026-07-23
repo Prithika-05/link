@@ -1,53 +1,99 @@
 // src/modules/messages/messages.routes.js
 
 import { authenticate } from '../../middlewares/auth.middleware.js';
-import { MessageService } from './messages.service.js';
+
+import { MessagesController } from './messages.controller.js';
+
 import {
   sendMessageSchema,
   conversationSchema,
+  markDeliveredSchema,
+  markReadSchema,
 } from './messages.schema.js';
 
+export default async function messagesRoutes(
+  fastify
+) {
+  const controller =
+    new MessagesController(fastify);
 
-
-export default async function messageRoutes(fastify) {
-  const messageService = new MessageService(fastify);
-
+  /**
+   * Send an encrypted message.
+   */
   fastify.post(
     '/',
     {
       preHandler: [authenticate],
-        schema: sendMessageSchema,
-        config: {
+
+      schema: sendMessageSchema,
+
+      config: {
         rateLimit: {
           max: 120,
-          timeWindow: "1 minute",
+          timeWindow: '1 minute',
         },
       },
     },
-    async (request, reply) => {
-      const result = await messageService.send(
-        request.user.sub,
-        request.body
-      );
-
-      return reply.code(201).send(result);
-    }
+    controller.send
   );
 
+  /**
+   * Retrieve conversation history.
+   */
   fastify.get(
     '/:userId',
     {
       preHandler: [authenticate],
+
       schema: conversationSchema,
+
+      config: {
+        rateLimit: {
+          max: 300,
+          timeWindow: '1 minute',
+        },
+      },
     },
-    async (request) => {
-      const { page = 1, limit = 50 } = request.query;
-      return messageService.conversation(
-      request.user.sub,
-      request.params.userId,
-      Number(page),
-      Number(limit)
-    );
-    }
+    controller.conversation
+  );
+
+  /**
+   * Mark a message as delivered.
+   */
+  fastify.patch(
+    '/:messageId/delivered',
+    {
+      preHandler: [authenticate],
+
+      schema: markDeliveredSchema,
+
+      config: {
+        rateLimit: {
+          max: 120,
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    controller.markDelivered
+  );
+
+  /**
+   * Mark a message as read.
+   */
+  fastify.patch(
+    '/:messageId/read',
+    {
+      preHandler: [authenticate],
+
+      schema: markReadSchema,
+
+      config: {
+        rateLimit: {
+          max: 120,
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    controller.markRead
   );
 }

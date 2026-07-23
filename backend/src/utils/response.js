@@ -1,28 +1,29 @@
-const successResponse = (
-  res,
+// src/utils/response.js
+
+export function successResponse(
+  reply,
   data = null,
-  message = "Success",
+  message = 'Success',
   statusCode = 200
-) => {
-  return res.status(statusCode).json({
+) {
+  return reply.status(statusCode).send({
     success: true,
     message,
     data,
   });
-};
+}
 
-const errorResponse = (
-  res,
-  message = "Internal Server Error",
-  statusCode = 500
-) => {
-  return res.status(statusCode).json({
+export function errorResponse(reply, error) {
+  const statusCode = error.statusCode || 500;
+
+  return reply.status(statusCode).send({
     success: false,
-    message,
+    error: {
+      code: error.code || 'INTERNAL_SERVER_ERROR',
+      message:
+        statusCode >= 500
+          ? 'Internal Server Error'
+          : error.message,
+    },
   });
-};
-
-module.exports = {
-  successResponse,
-  errorResponse,
-};
+}

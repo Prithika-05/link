@@ -1,35 +1,42 @@
 // src/modules/auth/auth.routes.js
 
-import { AuthService } from './auth.service.js';
+import { AuthController } from './auth.controller.js';
+
 import {
   registerSchema,
   loginSchema,
+  refreshSchema,
+  logoutSchema,
+  sessionsSchema,
+  revokeSessionSchema,
+  revokeAllSessionsSchema,
 } from './auth.schema.js';
+
 import { authenticate } from '../../middlewares/auth.middleware.js';
 
 export default async function authRoutes(fastify) {
-  const authService = new AuthService(fastify);
+  const controller = new AuthController(fastify);
 
-  // Register
+  /**
+   * Register
+   */
   fastify.post(
     '/register',
     {
       schema: registerSchema,
       config: {
-      rateLimit: {
-        max: 3,
-        timeWindow: "1 hour",
+        rateLimit: {
+          max: 3,
+          timeWindow: '1 hour',
+        },
       },
     },
-  },
-    async (request, reply) => {
-      const result = await authService.register(request.body);
-
-      return reply.code(201).send(result);
-    }
+    controller.register
   );
 
-  // Login
+  /**
+   * Login
+   */
   fastify.post(
     '/login',
     {
@@ -41,27 +48,77 @@ export default async function authRoutes(fastify) {
         },
       },
     },
-    async (request, reply) => {
-      const result = await authService.login(request.body);
-
-      return reply.code(200).send(result);
-    }
+    controller.login
   );
 
+  /**
+   * Refresh tokens
+   */
+  fastify.post(
+    '/refresh',
+    {
+      schema: refreshSchema,
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 hour',
+        },
+      },
+    },
+    controller.refresh
+  );
+
+  /**
+   * Logout current session
+   */
   fastify.post(
     '/logout',
     {
+      schema: logoutSchema,
+      preHandler: [authenticate],
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 hour',
+        },
+      },
+    },
+    controller.logout
+  );
+
+  /**
+   * List active device sessions
+   */
+  fastify.get(
+    '/sessions',
+    {
+      schema: sessionsSchema,
       preHandler: [authenticate],
     },
-    async (request, reply) => {
-      const token = request.headers.authorization.replace(
-        'Bearer ',
-        ''
-      );
+    controller.getSessions
+  );
 
-      const result = await authService.logout(token);
+  /**
+   * Revoke one device session
+   */
+  fastify.delete(
+    '/sessions/:sessionId',
+    {
+      schema: revokeSessionSchema,
+      preHandler: [authenticate],
+    },
+    controller.revokeSession
+  );
 
-      return reply.send(result);
-    }
+  /**
+   * Revoke all device sessions
+   */
+  fastify.delete(
+    '/sessions',
+    {
+      schema: revokeAllSessionsSchema,
+      preHandler: [authenticate],
+    },
+    controller.revokeAllSessions
   );
 }

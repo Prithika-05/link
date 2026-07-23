@@ -8,15 +8,14 @@ import { closeRedisAdapter } from './realtime/redis.adapter.js';
 
 let shuttingDown = false;
 
-
 async function startServer() {
   try {
-    await app.listen({
-      port: env.port,
-      host: '0.0.0.0',
-    });
-
     await initializeSocket(app);
+
+    await app.listen({
+      host: '0.0.0.0',
+      port: env.port,
+    });
 
     app.log.info('====================================');
     app.log.info('Secure Chat Backend Started');
@@ -24,8 +23,7 @@ async function startServer() {
     app.log.info(`Port        : ${env.port}`);
     app.log.info('====================================');
   } catch (error) {
-    app.log.fatal(error);
-
+    app.log.fatal(error, 'Failed to start server.');
     process.exit(1);
   }
 }
@@ -37,38 +35,39 @@ async function shutdown(signal) {
 
   shuttingDown = true;
 
-  app.log.info(`${signal} received. Shutting down...`);
+  app.log.info(`${signal} received. Shutting down gracefully...`);
 
   try {
     await closeRedisAdapter();
 
     await app.close();
 
-    app.log.info('✅ Server stopped successfully.');
-
-    process.exit(0);
+    app.log.info('Server closed successfully.');
   } catch (error) {
-    app.log.fatal(error);
-
-    process.exit(1);
+    app.log.fatal(error, 'Error during shutdown.');
+  } finally {
+    process.exit(0);
   }
 }
-
 
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-
 process.on('unhandledRejection', (reason) => {
-  app.log.fatal(reason);
+  app.log.fatal(
+    { reason },
+    'Unhandled Promise Rejection'
+  );
 
   shutdown('UNHANDLED_REJECTION');
 });
 
-
 process.on('uncaughtException', (error) => {
-  app.log.fatal(error);
+  app.log.fatal(
+    { err: error },
+    'Uncaught Exception'
+  );
 
   shutdown('UNCAUGHT_EXCEPTION');
 });

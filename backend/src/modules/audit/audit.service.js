@@ -3,10 +3,11 @@
 export class AuditService {
   constructor(fastify) {
     this.prisma = fastify.prisma;
+    this.logger = fastify.log;
   }
 
   async log({
-    userId,
+    userId = null,
     action,
     ipAddress = null,
     userAgent = null,
@@ -21,7 +22,14 @@ export class AuditService {
         },
       });
     } catch (error) {
-      console.error('Audit log failed:', error);
+      this.logger.error(
+        {
+          error,
+          action,
+          userId,
+        },
+        'Failed to write audit log.'
+      );
     }
   }
 }

@@ -1,44 +1,125 @@
 // src/realtime/socket.js
 
 import { Server } from 'socket.io';
+
+import { env } from '../config/env.js';
+
 import { registerSocketAuth } from './auth.js';
-import { registerMessageGateway } from './gateways/message.gateway.js';
+
 import { registerPresenceGateway } from './gateways/presence.gateway.js';
+import { registerMessageGateway } from './gateways/message.gateway.js';
+import { registerReceiptHandlers } from './gateways/receipt.gateway.js';
+import { registerTypingHandlers } from './gateways/typing.gateway.js';
+
 import { setupRedisAdapter } from './redis.adapter.js';
 
-let io;
+let io = null;
 
 /**
- * Initialize the Socket.IO server.
+ * Initialize Socket.IO.
+ *
  * @param {import('fastify').FastifyInstance} fastify
  */
-export async function initializeSocket(fastify) {
+export async function initializeSocket(
+  fastify
+) {
+  if (io) {
+    return io;
+  }
+
   io = new Server(fastify.server, {
     cors: {
-      origin:
-        process.env.NODE_ENV === 'production'
-          ? ['https://your-frontend-domain.com']
-          : true,
+      origin: env.isProduction
+        ? env.corsOrigins
+        : true,
 
       credentials: true,
 
-      methods: ['GET', 'POST'],
+      methods: [
+        'GET',
+        'POST',
+        'PATCH',
+      ],
     },
 
     transports: ['websocket'],
   });
 
-  await setupRedisAdapter(io, fastify.log);
+  /**
+   * Redis adapter.
+   */
+  await setupRedisAdapter(
+    io,
+    fastify.log
+  );
 
+  /**
+   * Socket authentication.
+   */
   registerSocketAuth(io, fastify);
-  registerPresenceGateway(io, fastify);
-  registerMessageGateway(io, fastify);
 
-  fastify.log.info('Socket.IO initialized');
+  /**
+   * Presence management.
+   */
+  registerPresenceGateway(
+    io,
+    fastify
+  );
+
+  /**
+   * Message gateway.
+   */
+  registerMessageGateway(
+    io,
+    fastify
+  );
+
+  /**
+   * Register per-socket handlers.
+   */
+  io.on('connection', (socket) => {
+    registerReceiptHandlers(
+      socket,
+      io,
+      fastify
+    );
+
+    registerTypingHandlers(
+      socket,
+      io,
+      fastify
+    );
+
+    fastify.log.debug(
+      {
+        socketId: socket.id,
+        userId: socket.data.user.sub,
+      },
+      'Socket connected.'
+    );
+
+    socket.on('disconnect', (reason) => {
+      fastify.log.debug(
+        {
+          socketId: socket.id,
+          userId: socket.data.user.sub,
+          reason,
+        },
+        'Socket disconnected.'
+      );
+    });
+  });
+
+  fastify.log.info(
+    'Socket.IO initialized.'
+  );
 
   return io;
 }
 
+/**
+ * Get initialized Socket.IO instance.
+ */
 export function getIO() {
   if (!io) {
     throw new Error(
