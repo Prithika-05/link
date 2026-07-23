@@ -10,12 +10,14 @@ export function getStoredToken() {
 export function saveToken(token, remember = false) {
     clearStoredToken()
 
+    const {accessToken} = token;
+
     const storage = remember ? window.localStorage : window.sessionStorage
     const key = remember
         ? STORAGE_KEYS.persistentToken
         : STORAGE_KEYS.sessionToken
 
-    storage.setItem(key, token)
+    storage.setItem(key, accessToken)
 }
 
 export function clearStoredToken() {

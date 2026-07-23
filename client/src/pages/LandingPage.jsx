@@ -48,10 +48,10 @@ export default function LandingPage() {
                             name="check" size={16}/> No tracking</span><span><Icon name="check" size={16}/> No compromise</span>
                         </div>
                     </div>
-                    <div className="hero-visual" aria-label="CipherChat product preview">
+                    <div className="hero-visual" aria-label="LinkChat product preview">
                         <div className="hero-glow"/>
                         <div className="demo-phone">
-                            <div className="phone-bar"><span className="phone-brand"><i/> CipherChat</span><Icon
+                            <div className="phone-bar"><span className="phone-brand"><i/> LinkChat</span><Icon
                                 name="more" size={18}/></div>
                             <div className="demo-contact"><span className="avatar avatar-violet avatar-sm">MP<i
                                 className="online-dot"/></span><span><b>Maya Patel</b><small><i
@@ -87,7 +87,7 @@ export default function LandingPage() {
                 <section id="how-it-works" className="how-section">
                     <div className="page-width how-inner">
                         <div><span className="eyebrow">HOW IT WORKS</span><h2>Security that does not get in your
-                            way.</h2><p>Set up your account once, then start chatting normally. CipherChat does the
+                            way.</h2><p>Set up your account once, then start chatting normally. LinkChat does the
                             difficult work in the background.</p></div>
                         <ol className="steps-list">
                             <li><b>01</b><span><strong>Create your account</strong><small>Join with your email and choose a secure password.</small></span>
@@ -100,7 +100,7 @@ export default function LandingPage() {
                     </div>
                 </section>
             </main>
-            <footer className="landing-footer page-width"><Brand/><p>© 2026 CipherChat. Private conversations, by
+            <footer className="landing-footer page-width"><Brand/><p>© 2026 LinkChat. Private conversations, by
                 design.</p>
                 <div><Link to="/login">Log in</Link><Link to="/register">Create account</Link></div>
             </footer>

@@ -25,7 +25,7 @@ export const loginAccount = createAsyncThunk(
     async ({email, password, remember}, {rejectWithValue}) => {
         try {
             const response = await authService.login({email, password})
-            saveToken(response.token, remember)
+            saveToken(response.data, remember)
             return response
         } catch (error) {
             return rejectWithValue(getApiErrorMessage(error, 'Login failed.'))
@@ -118,8 +118,8 @@ const authSlice = createSlice({
             })
             .addCase(loginAccount.fulfilled, (state, action) => {
                 state.status = 'authenticated'
-                state.token = action.payload.token
-                state.user = action.payload.user
+                state.token = action.payload.data.accessToken
+                state.user = action.payload.data.user
             })
             .addCase(loginAccount.rejected, (state, action) => {
                 state.status = 'error'

@@ -64,7 +64,7 @@ export default function KeySetupPage() {
                     <p>
                         {fingerprint
                             ? 'The public key is stored by the backend. The private key remains in this browser’s IndexedDB.'
-                            : 'CipherChat needs an ECDH P-256 key pair before this device can encrypt and decrypt messages.'}
+                            : 'LinkChat needs an ECDH P-256 key pair before this device can encrypt and decrypt messages.'}
                     </p>
                 </div>
                 {error && <Alert>{error}</Alert>}
@@ -100,7 +100,7 @@ export default function KeySetupPage() {
                     </Button>
                     {fingerprint && (
                         <Button onClick={() => navigate('/dashboard')} iconRight="arrowRight">
-                            Continue to CipherChat
+                            Continue to LinkChat
                         </Button>
                     )}
                 </div>

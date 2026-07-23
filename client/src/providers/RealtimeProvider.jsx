@@ -41,7 +41,7 @@ export default function RealtimeProvider({children}) {
                 const text = decryptRealtimeMessage.fulfilled.match(result)
                     ? result.payload.message.text
                     : 'New encrypted message'
-                new window.Notification('CipherChat', {body: text})
+                new window.Notification('LinkChat', {body: text})
             }
         }
 

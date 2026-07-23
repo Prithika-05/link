@@ -1,4 +1,4 @@
-const DB_NAME = 'cipherchat-crypto'
+const DB_NAME = 'linkchat-crypto'
 const DB_VERSION = 1
 const STORE_NAME = 'keyPairs'
 const ALGORITHM = 'ECDH-P256'
@@ -99,7 +99,7 @@ async function deriveAesKey(privateKey, publicKey) {
 }
 
 function buildAdditionalData(senderId, receiverId) {
-    return new TextEncoder().encode(`cipherchat-v1:${senderId}:${receiverId}`)
+    return new TextEncoder().encode(`linkchat-v1:${senderId}:${receiverId}`)
 }
 
 export async function createKeyPairMaterial(userId) {

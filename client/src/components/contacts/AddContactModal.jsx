@@ -28,7 +28,7 @@ export default function AddContactModal({onClose, onAdded}) {
             <form className="modal-form" onSubmit={submit}>
                 <p className="modal-description">
                     The backend has no user-search endpoint. Enter the exact user ID and
-                    CipherChat will verify that the account has uploaded a public key.
+                    LinkChat will verify that the account has uploaded a public key.
                 </p>
                 {error && <Alert>{error}</Alert>}
                 <TextInput

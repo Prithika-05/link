@@ -98,7 +98,7 @@ export function Alert({children, type = 'error', onDismiss}) {
     )
 }
 
-export function LoadingScreen({label = 'Loading CipherChat…'}) {
+export function LoadingScreen({label = 'Loading LinkChat…'}) {
     return (
         <main className="loading-screen">
       <span className="loading-mark">
