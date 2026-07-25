@@ -18,6 +18,7 @@ import {
   AUDIT_ACTION,
   SECURITY_EVENT,
   SECURITY_SEVERITY,
+  TOKEN_TYPE,
 } from '../../utils/constants.js';
 
 export class AuthService {
@@ -196,7 +197,8 @@ export class AuthService {
         const newRefreshToken =
           await this.tokenService.generateRefreshToken(
             user,
-            session
+            session,
+            payload.jti
           );
 
         return {
@@ -224,13 +226,19 @@ export class AuthService {
     session = {}
   ) {
     const payload =
-      this.tokenService.decodeToken(
+       await this.tokenService.verifyToken(
         accessToken
       );
 
     if (!payload) {
       throw new AuthenticationError(
         'Invalid token.'
+      );
+    }
+
+    if (payload.type !== TOKEN_TYPE.ACCESS) {
+      throw new AuthenticationError(
+        'Invalid access token.'
       );
     }
 

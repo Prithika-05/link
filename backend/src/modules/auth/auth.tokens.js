@@ -42,7 +42,11 @@ export class TokenService {
   /*                              Refresh Token                                */
   /* -------------------------------------------------------------------------- */
 
-  async generateRefreshToken(user, session = {}) {
+  async generateRefreshToken(
+    user,
+    session = {},
+    parentTokenId = null
+  ) {
     const tokenId = randomUUID();
 
     const token = this.jwt.sign(
@@ -61,12 +65,24 @@ export class TokenService {
     );
 
     await this.prisma.$transaction(async (tx) => {
+      let parent = null;
+
+      if (parentTokenId) {
+        parent =
+          await tx.refreshToken.findUnique({
+            where: {
+              tokenId: parentTokenId,
+            },
+          });
+      }
+
       const refreshToken =
         await tx.refreshToken.create({
           data: {
             tokenId,
             userId: user.id,
             expiresAt,
+            parentId: parent?.id ?? null,
           },
         });
 
