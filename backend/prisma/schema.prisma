@@ -60,14 +60,22 @@ model RefreshToken {
   id            String         @id @default(cuid())
   tokenId       String         @unique
   userId        String
+
+  // NEW: Parent refresh token in the rotation chain
+  parentId      String?
+  parent        RefreshToken?  @relation("RefreshTokenLineage", fields: [parentId], references: [id], onDelete: SetNull)
+  children      RefreshToken[] @relation("RefreshTokenLineage")
+
   expiresAt     DateTime
   revoked       Boolean        @default(false)
   createdAt     DateTime       @default(now())
+
   deviceSession DeviceSession?
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
+  @@index([parentId])
 }
 
 model DeviceSession {

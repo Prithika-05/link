@@ -11,19 +11,6 @@ import {
   SECURITY_SEVERITY,
 } from '../utils/constants.js';
 
-/**
- * Authenticate incoming requests.
- *
- * Verifies:
- *  - JWT signature
- *  - Token type (ACCESS)
- *  - Token blacklist
- *
- * Attaches the verified payload to request.user.
- *
- * @param {import('fastify').FastifyRequest} request
- * @param {import('fastify').FastifyReply} reply
- */
 export async function authenticate(request, reply) {
   const tokenService = new TokenService(request.server);
   const securityService = new SecurityService(request.server);

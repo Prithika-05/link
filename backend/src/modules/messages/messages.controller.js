@@ -4,21 +4,12 @@ import { MessageService } from './messages.service.js';
 import { successResponse } from '../../utils/response.js';
 
 export class MessagesController {
-  /**
-   * @param {import('fastify').FastifyInstance} fastify
-   */
   constructor(fastify) {
     this.messagesService = new MessageService(
       fastify
     );
   }
 
-  /**
-   * Send an encrypted message.
-   *
-   * @param {import('fastify').FastifyRequest} request
-   * @param {import('fastify').FastifyReply} reply
-   */
   send = async (request, reply) => {
     const message =
       await this.messagesService.send(
@@ -34,12 +25,6 @@ export class MessagesController {
     );
   };
 
-  /**
-   * Retrieve conversation history.
-   *
-   * @param {import('fastify').FastifyRequest} request
-   * @param {import('fastify').FastifyReply} reply
-   */
   conversation = async (
     request,
     reply
@@ -69,19 +54,14 @@ export class MessagesController {
     );
   };
 
-  /**
-   * Mark a message as delivered.
-   *
-   * @param {import('fastify').FastifyRequest} request
-   * @param {import('fastify').FastifyReply} reply
-   */
   markDelivered = async (
     request,
     reply
   ) => {
     const message =
       await this.messagesService.markDelivered(
-        request.params.messageId
+        request.params.messageId,
+        request.user.sub
       );
 
     return successResponse(
@@ -91,19 +71,14 @@ export class MessagesController {
     );
   };
 
-  /**
-   * Mark a message as read.
-   *
-   * @param {import('fastify').FastifyRequest} request
-   * @param {import('fastify').FastifyReply} reply
-   */
   markRead = async (
     request,
     reply
   ) => {
     const message =
       await this.messagesService.markRead(
-        request.params.messageId
+        request.params.messageId,
+        request.user.sub
       );
 
     return successResponse(

@@ -2,6 +2,7 @@
 
 import { NotFoundError } from '../../errors/NotFoundError.js';
 import { ValidationError } from '../../errors/ValidationError.js';
+import { AuthorizationError } from '../../errors/AuthorizationError.js';
 
 import {
   getPagination,
@@ -248,7 +249,26 @@ export class MessageService {
   /**
    * Mark delivered.
    */
-  async markDelivered(messageId) {
+  async markDelivered(messageId, userId) {
+    const message =
+      await this.prisma.message.findUnique({
+        where: {
+          id: messageId,
+        },
+      });
+
+    if (!message) {
+      throw new NotFoundError(
+        'Message not found.'
+      );
+    }
+
+    if (message.receiverId !== userId) {
+      throw new AuthorizationError(
+        'You are not authorized to update this message.'
+      );
+    }
+
     return this.prisma.message.update({
       where: {
         id: messageId,
@@ -263,7 +283,26 @@ export class MessageService {
   /**
    * Mark read.
    */
-  async markRead(messageId) {
+  async markRead(messageId, userId) {
+    const message =
+      await this.prisma.message.findUnique({
+        where: {
+          id: messageId,
+        },
+      });
+
+    if (!message) {
+      throw new NotFoundError(
+        'Message not found.'
+      );
+    }
+
+    if (message.receiverId !== userId) {
+      throw new AuthorizationError(
+        'You are not authorized to update this message.'
+      );
+    }
+
     return this.prisma.message.update({
       where: {
         id: messageId,

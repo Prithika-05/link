@@ -8,12 +8,6 @@ export class AuthController {
     this.authService = new AuthService(fastify);
   }
 
-  /**
-   * Build session metadata from the request.
-   *
-   * @param {import('fastify').FastifyRequest} request
-   * @returns {Object}
-   */
   getSessionInfo(request) {
     const body = request.body ?? {};
 

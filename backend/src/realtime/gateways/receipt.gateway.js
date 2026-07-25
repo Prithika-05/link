@@ -26,11 +26,11 @@ export function registerReceiptHandlers(
           );
         }
 
-        const message =
-          await messageService.markDelivered(
-            messageId
-          );
-
+       const message =
+        await messageService.markDelivered(
+          messageId,
+          socket.data.user.sub
+        );
         connectionManager.emit(
           message.senderId,
           EVENTS.MESSAGE_DELIVERED,
@@ -96,10 +96,11 @@ export function registerReceiptHandlers(
           );
         }
 
-        const message =
-          await messageService.markRead(
-            messageId
-          );
+       const message =
+        await messageService.markRead(
+          messageId,
+          socket.data.user.sub
+        );
 
         connectionManager.emit(
           message.senderId,
