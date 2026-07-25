@@ -12,6 +12,7 @@ import messageRoutes from './modules/messages/messages.routes.js';
 
 const app = Fastify({
   logger: loggerConfig,
+  trustProxy: true,
 });
 
 

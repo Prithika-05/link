@@ -1,21 +1,11 @@
 // src/realtime/room.manager.js
 
 export class RoomManager {
-  static conversationId(userA, userB) {
-    return [userA, userB]
-      .sort()
-      .join(':');
+  static conversationRoom(conversationId) {
+    return `conversation:${conversationId}`;
   }
 
-  static joinConversation(socket, userA, userB) {
-    socket.join(
-      RoomManager.conversationId(userA, userB)
-    );
-  }
-
-  static leaveConversation(socket, userA, userB) {
-    socket.leave(
-      RoomManager.conversationId(userA, userB)
-    );
+  static userRoom(userId) {
+    return `user:${userId}`;
   }
 }

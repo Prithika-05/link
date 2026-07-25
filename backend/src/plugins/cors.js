@@ -14,7 +14,7 @@ async function corsPlugin(fastify) {
   const allowedOrigins =
     env.nodeEnv === 'production'
       ? env.corsOrigins
-      : true;
+      : ['http://localhost:5173'];
 
   await fastify.register(fastifyCors, {
     origin: allowedOrigins,

@@ -9,6 +9,7 @@
     "test": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "postinstall": "npm run prisma:generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
