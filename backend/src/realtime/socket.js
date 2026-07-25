@@ -15,14 +15,7 @@ import { setupRedisAdapter } from './redis.adapter.js';
 
 let io = null;
 
-/**
- * Initialize Socket.IO.
- *
- * @param {import('fastify').FastifyInstance} fastify
- */
-export async function initializeSocket(
-  fastify
-) {
+export async function initializeSocket(fastify) {
   if (io) {
     return io;
   }
@@ -35,11 +28,7 @@ export async function initializeSocket(
 
       credentials: true,
 
-      methods: [
-        'GET',
-        'POST',
-        'PATCH',
-      ],
+      methods: ['GET', 'POST', 'PATCH'],
     },
 
     transports: ['websocket'],
@@ -48,68 +37,52 @@ export async function initializeSocket(
   /**
    * Redis adapter.
    */
-  await setupRedisAdapter(
-    io,
-    fastify.log
-  );
+  await setupRedisAdapter(io, fastify.log);
 
   /**
    * Socket authentication.
    */
   registerSocketAuth(io, fastify);
 
-  /**
-   * Presence management.
-   */
-  registerPresenceGateway(
-    io,
-    fastify
-  );
+  registerPresenceGateway(io, fastify);
 
   /**
    * Message gateway.
    */
-  registerMessageGateway(
-    io,
-    fastify
-  );
+  registerMessageGateway(io, fastify);
 
-  /**
-   * Register per-socket handlers.
-   */
   io.on('connection', (socket) => {
-      const userId = socket.data.user.sub;
+    const userId = socket.data.user.sub;
 
-      connectionManager.add(userId, socket);
+    connectionManager.add(userId, socket);
 
-      registerReceiptHandlers(socket, io, fastify);
-      registerTypingHandlers(socket, io, fastify);
+    registerReceiptHandlers(socket, io, fastify);
+    registerTypingHandlers(socket, io, fastify);
+
+    fastify.log.debug(
+      {
+        socketId: socket.id,
+        userId,
+      },
+      'Socket connected.'
+    );
+
+    socket.on('disconnect', (reason) => {
+
+      connectionManager.remove(userId, socket);
 
       fastify.log.debug(
-          {
-              socketId: socket.id,
-              userId,
-          },
-          'Socket connected.'
+        {
+          socketId: socket.id,
+          userId,
+          reason,
+        },
+        'Socket disconnected.'
       );
-
-      socket.on('disconnect', (reason) => {
-          connectionManager.remove(userId, socket);
-
-          fastify.log.debug(
-              {
-                  socketId: socket.id,
-                  userId,
-                  reason,
-              },
-              'Socket disconnected.'
-          );
-      });
+    });
   });
 
-  fastify.log.info(
-    'Socket.IO initialized.'
-  );
+  fastify.log.info('Socket.IO initialized.');
 
   return io;
 }

@@ -14,20 +14,8 @@ export function registerPresenceGateway(
   io.on('connection', async (socket) => {
     const userId = socket.data.user.sub;
 
-    /**
-     * Register socket connection.
-     */
-    connectionManager.add(
-      userId,
-      socket
-    );
-
-    /**
-     * Only notify when the first device
-     * comes online.
-     */
     if (
-      connectionManager.get(userId).size === 1
+      connectionManager.getSocketCount(userId) === 1
     ) {
       try {
         await fastify.prisma.user.update({
@@ -48,27 +36,23 @@ export function registerPresenceGateway(
           'User came online.'
         );
       } catch (error) {
-        fastify.log.error(error);
+        fastify.log.error(
+          {
+            userId,
+            error,
+          },
+          'Failed updating user presence.'
+        );
       }
     }
 
-    /**
-     * Handle disconnect.
-     */
     socket.on(
       'disconnect',
       async (reason) => {
-        connectionManager.remove(
-          userId,
-          socket
-        );
-
-        /**
-         * Only mark offline when
-         * every socket has disconnected.
-         */
         if (
-          !connectionManager.has(userId)
+          !connectionManager.isConnected(
+            userId
+          )
         ) {
           try {
             await fastify.prisma.user.update({
@@ -96,7 +80,13 @@ export function registerPresenceGateway(
               'User went offline.'
             );
           } catch (error) {
-            fastify.log.error(error);
+            fastify.log.error(
+              {
+                userId,
+                error,
+              },
+              'Failed updating user presence.'
+            );
           }
         }
       }
