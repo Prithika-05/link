@@ -22,7 +22,7 @@ async function helmetPlugin(fastify) {
     },
   });
 
-  fastify.log.info('✅ Helmet initialized');
+  fastify.log.info('Helmet initialized');
 }
 
 export default fp(helmetPlugin, {

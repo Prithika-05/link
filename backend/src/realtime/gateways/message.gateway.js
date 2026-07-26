@@ -23,6 +23,20 @@ export function registerMessageGateway(
         try {
           const senderId =
             socket.data.user.sub;
+          const receiver = await fastify.prisma.user.findUnique({
+            where: {
+              publicId: payload.receiverId,
+            },
+            select: {
+              id: true,
+              publicId: true,
+              status: true,
+            },
+          });
+
+          if (!receiver) {
+            throw new Error('Receiver not found.');
+          }
 
           /**
            * Required encrypted payload.
@@ -91,7 +105,8 @@ export function registerMessageGateway(
            */
           if (
             connectionManager.has(
-              payload.receiverId
+              payload.receiverId,
+              fastify.log.info('Emitting MESSAGE_RECEIVE')
             )
           ) {
             connectionManager.emit(
@@ -101,6 +116,7 @@ export function registerMessageGateway(
             );
           }
 
+        
           fastify.log.info(
             {
               messageId:
@@ -110,6 +126,8 @@ export function registerMessageGateway(
 
               receiverId:
                 payload.receiverId,
+
+              receiverPublicId: receiver.publicId,
             },
             'Encrypted message sent.'
           );

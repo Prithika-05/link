@@ -31,7 +31,7 @@ async function prismaPlugin(fastify) {
 
     fastify.decorate('prisma', prisma);
 
-    fastify.log.info('✅ Connected to PostgreSQL');
+    fastify.log.info('Connected to PostgreSQL');
   } catch (error) {
     fastify.log.fatal(error);
 
@@ -41,7 +41,7 @@ async function prismaPlugin(fastify) {
   fastify.addHook('onClose', async () => {
     await prisma.$disconnect();
 
-    fastify.log.info('📦 PostgreSQL connection closed.');
+    fastify.log.info('PostgreSQL connection closed.');
   });
 }
 

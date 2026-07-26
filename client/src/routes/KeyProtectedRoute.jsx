@@ -6,7 +6,6 @@ import { hasStoredKeyPair } from '../services/cryptoService';
 
 export default function KeyProtectedRoute() {
     const publicId = useSelector((state) => state.auth.user?.publicId);
-    console.log("KeyProtectedRoute publicId:", publicId);
     const [status, setStatus] = useState('checking');
 
     useEffect(() => {

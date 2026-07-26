@@ -49,8 +49,6 @@ function base64ToBytes(value) {
     return Uint8Array.from(binary, (character) => character.charCodeAt(0))
 }
 function parsePublicKey(serializedKey) {
-    console.log('Received public key:', serializedKey);
-
     try {
         return JSON.parse(serializedKey);
     } catch (error) {
@@ -158,7 +156,6 @@ export async function storeKeyPair(record) {
 
 export async function generateAndStoreKeyPair(publicId) {
     const record = await createKeyPairMaterial(publicId)
-    console.log(record);
     return storeKeyPair(record)
 }
 
@@ -220,6 +217,12 @@ export async function decryptMessage({
     if (!ownKeyPair?.privateKey) {
         throw new Error('Your private key is missing on this device.')
     }
+    console.log({
+    currentUserPublicId,
+    counterpartyPublicKey,
+    senderPublicId: message.senderPublicId,
+    receiverPublicId: message.receiverPublicId,
+});
 
     const otherPublicKey = await importPublicKey(counterpartyPublicKey)
     const aesKey = await deriveAesKey(ownKeyPair.privateKey, otherPublicKey)
