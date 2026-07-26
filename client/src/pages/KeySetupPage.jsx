@@ -15,10 +15,12 @@ export default function KeySetupPage() {
     const [error, setError] = useState('')
 
     useEffect(() => {
-        getStoredKeyPair(user.id)
+        if (!user?.publicId) return;
+
+        getStoredKeyPair(user.publicId)
             .then((record) => setFingerprint(record?.fingerprint || ''))
-            .catch(() => setFingerprint(''))
-    }, [user.id])
+            .catch(() => setFingerprint(''));
+    }, [user?.publicId]);
 
     const createKeys = async () => {
         if (fingerprint) {
@@ -32,7 +34,11 @@ export default function KeySetupPage() {
         setError('')
 
         try {
-            const material = await createKeyPairMaterial(user.id)
+            if (!user?.publicId) {
+                throw new Error("User publicId is missing.");
+            }
+
+            const material = await createKeyPairMaterial(user.publicId)
             await keyService.uploadPublicKey({
                 algorithm: material.algorithm,
                 key: material.publicKey,
@@ -99,7 +105,7 @@ export default function KeySetupPage() {
                         {fingerprint ? 'Replace this device key' : 'Generate and upload key'}
                     </Button>
                     {fingerprint && (
-                        <Button onClick={() => navigate('/dashboard')} iconRight="arrowRight">
+                        <Button onClick={() =>{ console.log("Continue clicked"); navigate('/dashboard');}} iconRight="arrowRight">
                             Continue to LinkChat
                         </Button>
                     )}

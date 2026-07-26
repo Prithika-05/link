@@ -1,4 +1,4 @@
-import {STORAGE_KEYS} from '../constants/storage.js'
+import { STORAGE_KEYS } from '../constants/storage.js'
 
 export function getStoredToken() {
     return (
@@ -7,12 +7,13 @@ export function getStoredToken() {
     )
 }
 
-export function saveToken(token, remember = false) {
+export function saveToken(accessToken, remember = false) {
     clearStoredToken()
 
-    const {accessToken} = token;
+    const storage = remember
+        ? window.localStorage
+        : window.sessionStorage
 
-    const storage = remember ? window.localStorage : window.sessionStorage
     const key = remember
         ? STORAGE_KEYS.persistentToken
         : STORAGE_KEYS.sessionToken

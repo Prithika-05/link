@@ -9,7 +9,7 @@ import AppRouter from "./routes/AppRouter.jsx";
 
 export default function App() {
     const dispatch = useDispatch()
-    const userId = useSelector((state) => state.auth.user?.id)
+    const publicId = useSelector((state) => state.auth.user?.publicId);
     const started = useRef(false)
 
     useEffect(() => {
@@ -20,10 +20,10 @@ export default function App() {
     }, [dispatch])
 
     useEffect(() => {
-        if (userId) {
-            dispatch(loadContacts(userId))
+        if (publicId) {
+            dispatch(loadContacts(publicId))
         }
-    }, [dispatch, userId])
+    }, [dispatch, publicId])
 
     useEffect(() => {
         const handleUnauthorized = () => {

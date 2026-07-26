@@ -24,15 +24,25 @@ export default function LoginPage() {
     }
 
     const submit = async (event) => {
-        event.preventDefault()
-        const result = await dispatch(loginAccount(form))
+        event.preventDefault();
 
-        if (!loginAccount.fulfilled.match(result)) return
+        const result = await dispatch(loginAccount(form));
 
-        const hasKey = await hasStoredKeyPair(result.payload.user.id)
-        const requestedPath = location.state?.from?.pathname
-        navigate(hasKey ? requestedPath || '/dashboard' : '/setup', {replace: true})
-    }
+        if (!loginAccount.fulfilled.match(result)) {
+            return;
+        }
+
+        const hasKey = await hasStoredKeyPair(
+            result.payload.data.user.publicId,
+        );
+
+        const requestedPath = location.state?.from?.pathname;
+
+        navigate(
+            hasKey ? requestedPath || '/dashboard' : '/setup',
+            { replace: true },
+        );
+    };
 
     return (
         <AuthLayout>

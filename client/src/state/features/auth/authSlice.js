@@ -1,79 +1,97 @@
-import {createAsyncThunk, createSlice} from '@reduxjs/toolkit'
-import {getApiErrorMessage} from '../../../api/apiError.js'
-import {authService} from '../../../services/authService.js'
-import {clearStoredToken, getStoredToken, saveToken,} from '../../../services/tokenStorage.js'
-import {userService} from '../../../services/userService.js'
+import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { getApiErrorMessage } from '../../../api/apiError.js'
+import { authService } from '../../../services/authService.js'
+import {
+    clearStoredToken,
+    getStoredToken,
+    saveToken,
+} from '../../../services/tokenStorage.js'
+import { userService } from '../../../services/userService.js'
 
 export const registerAccount = createAsyncThunk(
     'auth/registerAccount',
-    async ({username, email, password}, {rejectWithValue}) => {
+    async ({ username, email, password }, { rejectWithValue }) => {
         try {
-            await authService.register({username, email, password})
-            const loginResponse = await authService.login({email, password})
-            saveToken(loginResponse.token, true)
+            await authService.register({ username, email, password })
+
+            const loginResponse = await authService.login({ email, password })
+
+            saveToken(loginResponse.data.accessToken, true)
+
             return loginResponse
         } catch (error) {
             return rejectWithValue(
-                getApiErrorMessage(error, 'Account creation failed.'),
+                getApiErrorMessage(error, 'Account creation failed.')
             )
         }
-    },
+    }
 )
 
 export const loginAccount = createAsyncThunk(
     'auth/loginAccount',
-    async ({email, password, remember}, {rejectWithValue}) => {
+    async ({ email, password, remember }, { rejectWithValue }) => {
         try {
-            const response = await authService.login({email, password})
-            saveToken(response.data, remember)
+            const response = await authService.login({ email, password })
+
+            saveToken(response.data.accessToken, remember)
+
             return response
         } catch (error) {
-            return rejectWithValue(getApiErrorMessage(error, 'Login failed.'))
+            return rejectWithValue(
+                getApiErrorMessage(error, 'Login failed.')
+            )
         }
-    },
+    }
 )
 
 export const restoreSession = createAsyncThunk(
     'auth/restoreSession',
-    async (_, {rejectWithValue}) => {
+    async (_, { rejectWithValue }) => {
         const token = getStoredToken()
+
         if (!token) return null
 
         try {
             const user = await userService.getCurrentUser()
-            return {token, user}
+
+            return { token, user }
         } catch (error) {
             clearStoredToken()
-            return rejectWithValue(getApiErrorMessage(error, 'Session expired.'))
+
+            return rejectWithValue(
+                getApiErrorMessage(error, 'Session expired.')
+            )
         }
-    },
+    }
 )
 
 export const refreshCurrentUser = createAsyncThunk(
     'auth/refreshCurrentUser',
-    async (_, {rejectWithValue}) => {
+    async (_, { rejectWithValue }) => {
         try {
             return await userService.getCurrentUser()
         } catch (error) {
             return rejectWithValue(
-                getApiErrorMessage(error, 'Unable to load your profile.'),
+                getApiErrorMessage(error, 'Unable to load your profile.')
             )
         }
-    },
+    }
 )
 
 export const logoutAccount = createAsyncThunk(
     'auth/logoutAccount',
-    async (_, {rejectWithValue}) => {
+    async (_, { rejectWithValue }) => {
         try {
             await authService.logout()
             return true
         } catch (error) {
-            return rejectWithValue(getApiErrorMessage(error, 'Logout request failed.'))
+            return rejectWithValue(
+                getApiErrorMessage(error, 'Logout request failed.')
+            )
         } finally {
             clearStoredToken()
         }
-    },
+    }
 )
 
 const initialState = {
@@ -105,13 +123,14 @@ const authSlice = createSlice({
             })
             .addCase(registerAccount.fulfilled, (state, action) => {
                 state.status = 'authenticated'
-                state.token = action.payload.token
-                state.user = action.payload.user
+                state.token = action.payload.data.accessToken
+                state.user = action.payload.data.user
             })
             .addCase(registerAccount.rejected, (state, action) => {
                 state.status = 'error'
                 state.error = action.payload
             })
+
             .addCase(loginAccount.pending, (state) => {
                 state.status = 'loading'
                 state.error = null
@@ -125,6 +144,7 @@ const authSlice = createSlice({
                 state.status = 'error'
                 state.error = action.payload
             })
+
             .addCase(restoreSession.pending, (state) => {
                 state.status = 'restoring'
             })
@@ -145,9 +165,11 @@ const authSlice = createSlice({
                 state.token = null
                 state.user = null
             })
+
             .addCase(refreshCurrentUser.fulfilled, (state, action) => {
                 state.user = action.payload
             })
+
             .addCase(logoutAccount.fulfilled, (state) => {
                 state.token = null
                 state.user = null
@@ -162,5 +184,5 @@ const authSlice = createSlice({
     },
 })
 
-export const {clearAuthError, forceLogout} = authSlice.actions
+export const { clearAuthError, forceLogout } = authSlice.actions
 export default authSlice.reducer

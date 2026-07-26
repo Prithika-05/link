@@ -1,23 +1,26 @@
-import {apiClient} from '../api/httpClient'
+import { apiClient } from '../api/httpClient';
 
 export const messageService = {
     async sendMessage(payload) {
-        const {data} = await apiClient.post('/messages', payload)
+        const { data } = await apiClient.post('/messages', payload);
 
-        return data.data
+        return data.data;
     },
 
-    async getConversation(userId, {page = 1, limit = 50} = {}) {
-        const {data} = await apiClient.get(
-            `/messages/${encodeURIComponent(userId)}`,
+    async getConversation(
+        publicId,
+        { page = 1, limit = 50 } = {},
+    ) {
+        const { data } = await apiClient.get(
+            `/messages/${encodeURIComponent(publicId)}`,
             {
                 params: {
                     page,
                     limit,
                 },
             },
-        )
+        );
 
-        return data.data
+        return data.data;
     },
-}
+};

@@ -25,20 +25,20 @@ export default function ContactsPage() {
         if (!normalized) return contacts
 
         return contacts.filter((contact) =>
-            `${contact.name} ${contact.userId}`
+            `${contact.name} ${contact.publicId}`
                 .toLowerCase()
                 .includes(normalized),
         )
     }, [contacts, query])
 
     const startChat = (contact) => {
-        navigate(`/dashboard?contact=${encodeURIComponent(contact.userId)}`)
+        navigate(`/dashboard?contact=${encodeURIComponent(contact.publicId)}`)
     }
 
     const deleteContact = (contact) => {
         if (!window.confirm(`Remove ${contact.name} from this browser?`)) return
 
-        dispatch(removeContact(contact.userId))
+        dispatch(removeContact(contact.publicId))
     }
 
     return (
@@ -66,7 +66,7 @@ export default function ContactsPage() {
                         <input
                             value={query}
                             onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Search saved contacts or user IDs"
+                            placeholder="Search saved contacts or Public IDs"
                         />
                     </label>
 
@@ -79,7 +79,7 @@ export default function ContactsPage() {
                         {filtered.map((contact) => (
                             <article
                                 className="contact-row"
-                                key={contact.userId}
+                                key={contact.publicId}
                             >
                                 <Avatar
                                     initials={contact.initials}
@@ -90,9 +90,9 @@ export default function ContactsPage() {
                                 <div>
                                     <strong>{contact.name}</strong>
 
-                                    <small title={contact.userId}>
-                                        ID:{' '}
-                                        {truncateId(contact.userId, 18)} ·{' '}
+                                    <small title={contact.publicId}>
+                                        Public ID:{' '}
+                                        {truncateId(contact.publicId, 18)} ·{' '}
                                         {contact.algorithm}
                                     </small>
                                 </div>
@@ -133,8 +133,8 @@ export default function ContactsPage() {
                                 }
                                 description={
                                     contacts.length === 0
-                                        ? 'Add someone using the exact user ID returned by their backend account.'
-                                        : 'Try a different name or user ID.'
+                                        ? 'Add someone using the exact Public ID returned by their backend account.'
+                                        : 'Try a different name or Public ID.'
                                 }
                                 action={
                                     contacts.length === 0 ? (

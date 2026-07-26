@@ -6,7 +6,7 @@ import {Alert, Button, Modal, TextInput} from '../common/UI'
 export default function AddContactModal({onClose, onAdded}) {
     const dispatch = useDispatch()
     const {status, error} = useSelector((state) => state.contacts)
-    const [form, setForm] = useState({userId: '', name: ''})
+    const [form, setForm] = useState({publicId: '', name: ''})
 
     const update = (field) => (event) => {
         dispatch(clearContactsError())
@@ -34,7 +34,7 @@ export default function AddContactModal({onClose, onAdded}) {
                 <TextInput
                     label="Backend user ID"
                     value={form.userId}
-                    onChange={update('userId')}
+                    onChange={update('publicId')}
                     placeholder="e.g. cm123abc…"
                     required
                 />
