@@ -1,5 +1,5 @@
 const DB_NAME = 'linkchat-crypto'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE_NAME = 'keyPairs'
 const ALGORITHM = 'ECDH-P256'
 const CURVE = 'P-256'
@@ -12,7 +12,7 @@ function openDatabase() {
         request.onupgradeneeded = () => {
             const database = request.result
             if (!database.objectStoreNames.contains(STORE_NAME)) {
-                database.createObjectStore(STORE_NAME, {keyPath: 'userId'})
+                database.createObjectStore(STORE_NAME, {keyPath: 'publicId'})
             }
         }
 
@@ -102,7 +102,7 @@ function buildAdditionalData(senderId, receiverId) {
     return new TextEncoder().encode(`linkchat-v1:${senderId}:${receiverId}`)
 }
 
-export async function createKeyPairMaterial(userId) {
+export async function createKeyPairMaterial(publicId) {
     if (!window.crypto?.subtle || !window.indexedDB) {
         throw new Error('This browser does not support the required Web Crypto APIs.')
     }
@@ -132,7 +132,7 @@ export async function createKeyPairMaterial(userId) {
     const fingerprint = await fingerprintPublicKey(serializedPublicKey)
 
     const record = {
-        userId,
+        publicId,
         algorithm: ALGORITHM,
         privateKey,
         publicKey: serializedPublicKey,
@@ -148,30 +148,31 @@ export async function storeKeyPair(record) {
     return record
 }
 
-export async function generateAndStoreKeyPair(userId) {
-    const record = await createKeyPairMaterial(userId)
+export async function generateAndStoreKeyPair(publicId) {
+    const record = await createKeyPairMaterial(publicId)
+    console.log(record);
     return storeKeyPair(record)
 }
 
-export async function getStoredKeyPair(userId) {
-    return runStore('readonly', (store) => store.get(userId))
+export async function getStoredKeyPair(publicId) {
+    return runStore('readonly', (store) => store.get(publicId))
 }
 
-export async function hasStoredKeyPair(userId) {
-    return Boolean(await getStoredKeyPair(userId))
+export async function hasStoredKeyPair(publicId) {
+    return Boolean(await getStoredKeyPair(publicId))
 }
 
-export async function removeStoredKeyPair(userId) {
-    return runStore('readwrite', (store) => store.delete(userId))
+export async function removeStoredKeyPair(publicId) {
+    return runStore('readwrite', (store) => store.delete(publicId))
 }
 
 export async function encryptMessage({
-                                         senderId,
-                                         receiverId,
+                                         senderPublicId,
+                                         receiverPublicId,
                                          receiverPublicKey,
                                          plaintext,
                                      }) {
-    const ownKeyPair = await getStoredKeyPair(senderId)
+    const ownKeyPair = await getStoredKeyPair(senderPublicId)
     if (!ownKeyPair?.privateKey) {
         throw new Error('Your private key is missing on this device.')
     }
@@ -183,7 +184,7 @@ export async function encryptMessage({
         {
             name: 'AES-GCM',
             iv,
-            additionalData: buildAdditionalData(senderId, receiverId),
+            additionalData: buildAdditionalData(senderPublicId, receiverPublicId,),
             tagLength: 128,
         },
         aesKey,
@@ -198,19 +199,16 @@ export async function encryptMessage({
         ciphertext: bytesToBase64(ciphertext),
         iv: bytesToBase64(iv),
         authTag: bytesToBase64(authTag),
-        // The backend contract names this field ephemeralPublicKey. Its current
-        // schema has no sender-encrypted copy, so the sender's persistent public
-        // key is used to keep sent history decryptable on reload.
         ephemeralPublicKey: ownKeyPair.publicKey,
     }
 }
 
 export async function decryptMessage({
-                                         currentUserId,
+                                         currentUserPublicId,
                                          counterpartyPublicKey,
                                          message,
                                      }) {
-    const ownKeyPair = await getStoredKeyPair(currentUserId)
+    const ownKeyPair = await getStoredKeyPair(currentUserPublicId)
     if (!ownKeyPair?.privateKey) {
         throw new Error('Your private key is missing on this device.')
     }
@@ -227,7 +225,7 @@ export async function decryptMessage({
         {
             name: 'AES-GCM',
             iv: base64ToBytes(message.iv),
-            additionalData: buildAdditionalData(message.senderId, message.receiverId),
+            additionalData: buildAdditionalData(message.senderPublicId, message.receiverPublicId),
             tagLength: 128,
         },
         aesKey,
