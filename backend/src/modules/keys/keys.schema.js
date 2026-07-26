@@ -174,7 +174,7 @@ export const getKeySchema = {
   params: {
     type: 'object',
 
-    required: ['userId'],
+    required: ['publicId'],
 
     properties: {
       userId: {

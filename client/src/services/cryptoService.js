@@ -19,7 +19,7 @@ function openDatabase() {
         request.onsuccess = () => resolve(request.result)
         request.onerror = () => reject(request.error)
     })
-}
+}   
 
 async function runStore(mode, operation) {
     const database = await openDatabase()
@@ -48,15 +48,23 @@ function base64ToBytes(value) {
     const binary = window.atob(value)
     return Uint8Array.from(binary, (character) => character.charCodeAt(0))
 }
-
 function parsePublicKey(serializedKey) {
+    console.log('Received public key:', serializedKey);
+
     try {
-        return JSON.parse(serializedKey)
-    } catch {
+        return JSON.parse(serializedKey);
+    } catch (error) {
+        console.log('JSON parse failed:', error);
+
         try {
-            return JSON.parse(new TextDecoder().decode(base64ToBytes(serializedKey)))
-        } catch {
-            throw new Error('The public key format is not supported by this frontend.')
+            return JSON.parse(
+                new TextDecoder().decode(base64ToBytes(serializedKey))
+            );
+        } catch (error) {
+            console.log('Base64 parse failed:', error);
+            throw new Error(
+                'The public key format is not supported by this frontend.'
+            );
         }
     }
 }

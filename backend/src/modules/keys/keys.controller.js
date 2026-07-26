@@ -4,23 +4,15 @@ import { KeysService } from './keys.service.js';
 import { successResponse } from '../../utils/response.js';
 
 export class KeysController {
-  /**
-   * @param {import('fastify').FastifyInstance} fastify
-   */
+
   constructor(fastify) {
     this.keysService = new KeysService(fastify);
   }
 
-  /**
-   * Upload or update the authenticated user's public key.
-   *
-   * @param {import('fastify').FastifyRequest} request
-   * @param {import('fastify').FastifyReply} reply
-   */
   upload = async (request, reply) => {
     const key =
       await this.keysService.upload(
-        request.user.sub,
+        request.user.publicId,
         request.body
       );
 
@@ -35,16 +27,11 @@ export class KeysController {
     );
   };
 
-  /**
-   * Retrieve a user's public key.
-   *
-   * @param {import('fastify').FastifyRequest} request
-   * @param {import('fastify').FastifyReply} reply
-   */
+
   get = async (request, reply) => {
     const key =
       await this.keysService.get(
-        request.params.userId
+        request.params.publicId
       );
 
     return successResponse(
@@ -54,19 +41,11 @@ export class KeysController {
     );
   };
 
-  /**
-   * List the authenticated user's public keys.
-   *
-   * Currently returns one key, but supports
-   * future multi-device implementations.
-   *
-   * @param {import('fastify').FastifyRequest} request
-   * @param {import('fastify').FastifyReply} reply
-   */
+
   list = async (request, reply) => {
     const keys =
       await this.keysService.list(
-        request.user.sub
+        request.user.publicId
       );
 
     return successResponse(
@@ -76,16 +55,11 @@ export class KeysController {
     );
   };
 
-  /**
-   * Delete the authenticated user's public key.
-   *
-   * @param {import('fastify').FastifyRequest} request
-   * @param {import('fastify').FastifyReply} reply
-   */
+
   delete = async (request, reply) => {
     const result =
       await this.keysService.delete(
-        request.user.sub
+        request.user.publicId
       );
 
     return successResponse(

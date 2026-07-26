@@ -6,9 +6,9 @@ export const keyService = {
         return data
     },
 
-    async getPublicKey(userId) {
+    async getPublicKey(publicId) {
     const { data } = await apiClient.get(
-        `/keys/${encodeURIComponent(userId)}`
+        `/keys/${encodeURIComponent(publicId)}`
     )
 
     return data.data

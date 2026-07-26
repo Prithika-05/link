@@ -17,10 +17,7 @@ export default async function keysRoutes(
   const controller =
     new KeysController(fastify);
 
-  /**
-   * Upload or update the authenticated user's
-   * public key.
-   */
+
   fastify.post(
     '/',
     {
@@ -38,11 +35,7 @@ export default async function keysRoutes(
     controller.upload
   );
 
-  /**
-   * List the authenticated user's keys.
-   *
-   * Must come before "/:userId".
-   */
+
   fastify.get(
     '/me',
     {
@@ -60,11 +53,7 @@ export default async function keysRoutes(
     controller.list
   );
 
-  /**
-   * Delete the authenticated user's key.
-   *
-   * Must come before "/:userId".
-   */
+
   fastify.delete(
     '/me',
     {
@@ -82,11 +71,8 @@ export default async function keysRoutes(
     controller.delete
   );
 
-  /**
-   * Retrieve another user's public key.
-   */
   fastify.get(
-    '/:userId',
+    '/:publicId',
     {
       preHandler: [authenticate],
 

@@ -71,6 +71,11 @@ export const sendEncryptedMessage = createAsyncThunk(
 
         try {
             const publicKey = await keyService.getPublicKey(contactId)
+            console.log(publicKey);
+            console.log({
+                me: currentUserPublicId,
+                contactId,
+            });
             const encryptedPayload = await encryptMessage({
                 senderPublicId: currentUserPublicId,
                 receiverPublicId: contactId,
