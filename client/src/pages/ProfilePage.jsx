@@ -21,8 +21,8 @@ export default function ProfilePage() {
         let active = true
 
         Promise.all([
-            keyService.getPublicKey(user.id),
-            getStoredKeyPair(user.id),
+            keyService.getPublicKey(user.publicId),
+            getStoredKeyPair(user.publicId),
         ])
             .then(([backendKey, deviceKey]) => {
                 if (!active) return
@@ -36,7 +36,7 @@ export default function ProfilePage() {
         return () => {
             active = false
         }
-    }, [user.id])
+    }, [user.publicId])
 
     const fingerprint = publicKey?.fingerprint || localKey?.fingerprint
     const keyMatches = Boolean(
@@ -58,7 +58,7 @@ export default function ProfilePage() {
         const url = URL.createObjectURL(blob)
         const anchor = document.createElement('a')
         anchor.href = url
-        anchor.download = `linkchat-${user.id}-public-key.json`
+        anchor.download = `linkchat-${user.publicId}-public-key.json`
         anchor.click()
         URL.revokeObjectURL(url)
     }
@@ -70,7 +70,7 @@ export default function ProfilePage() {
                     <div>
                         <span className="eyebrow">YOUR ACCOUNT</span>
                         <h1>Profile</h1>
-                        <p>Identity data is loaded from GET /api/users/me.</p>
+                        <p>publicIdentity data is loaded from GET /api/users/me.</p>
                     </div>
                     <Button
                         variant="secondary"
@@ -96,8 +96,8 @@ export default function ProfilePage() {
                     </div>
                     <div className="profile-details">
                         <div>
-                            <span>Backend user ID</span>
-                            <strong className="long-value">{user.id}</strong>
+                            <span>Backend user publicId</span>
+                            <strong className="long-value">{user.publicId}</strong>
                         </div>
                         <div>
                             <span>Public key status</span>
@@ -114,7 +114,7 @@ export default function ProfilePage() {
                     <div className="card-heading">
                         <div>
                             <span className="eyebrow">SECURITY</span>
-                            <h2>Your identity fingerprint</h2>
+                            <h2>Your publicIdentity fingerprint</h2>
                             <p>Share or compare this value to verify your public key.</p>
                         </div>
                         <Icon name="shield" size={27}/>
