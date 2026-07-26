@@ -143,36 +143,40 @@ export class KeysService {
   /**
    * Get one user's public key.
    */
-  async get(userId) {
-    const key =
-      await this.prisma.publicKey.findFirst({
-        where: {
-          userId,
-        },
+  async get(publicId) {
+  const user = await this.prisma.user.findUnique({
+    where: {
+      publicId,
+    },
+    select: {
+      id: true,
+    },
+  });
 
-        select: {
-          id: true,
-
-          algorithm: true,
-
-          key: true,
-
-          fingerprint: true,
-
-          createdAt: true,
-
-          updatedAt: true,
-        },
-      });
-
-    if (!key) {
-      throw new NotFoundError(
-        'Public key not found.'
-      );
-    }
-
-    return key;
+  if (!user) {
+    throw new NotFoundError('User not found.');
   }
+
+  const key = await this.prisma.publicKey.findFirst({
+    where: {
+      userId: user.id,
+    },
+    select: {
+      id: true,
+      algorithm: true,
+      key: true,
+      fingerprint: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  if (!key) {
+    throw new NotFoundError('Public key not found.');
+  }
+
+  return key;
+}
 
   /**
    * List public keys.

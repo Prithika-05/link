@@ -33,7 +33,7 @@ export default function AddContactModal({onClose, onAdded}) {
                 {error && <Alert>{error}</Alert>}
                 <TextInput
                     label="Backend user ID"
-                    value={form.userId}
+                    value={form.publicId}
                     onChange={update('publicId')}
                     placeholder="e.g. cm123abc…"
                     required

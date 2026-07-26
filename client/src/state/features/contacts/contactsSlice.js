@@ -15,61 +15,59 @@ export const loadContacts = createAsyncThunk(
 
 export const addContact = createAsyncThunk(
     'contacts/addContact',
-    async ({userId, name}, {getState, rejectWithValue}) => {
-        const normalizedId = userId.trim()
-        const displayName = name.trim() || fallbackContactName(normalizedId)
-        const currentUserId = getState().auth.user?.id
+    async ({publicId, name}, {getState, rejectWithValue}) => {
+    const normalizedId = publicId.trim()
+    const displayName = name.trim() || fallbackContactName(normalizedId)
+    const currentUserId = getState().auth.user?.publicId
 
-        if (!normalizedId) {
-            return rejectWithValue('A backend user ID is required.')
+    if (!normalizedId) {
+        return rejectWithValue('A public ID is required.')
+    }
+
+    if (normalizedId === currentUserId) {
+        return rejectWithValue('You cannot add yourself as a contact.')
+    }
+
+    try {
+        const publicKey = await keyService.getPublicKey(normalizedId)
+
+        return {
+            publicId: normalizedId,
+            name: displayName,
+            initials: getInitials(displayName),
+            color: colorFromId(normalizedId),
+            fingerprint: publicKey.fingerprint,
+            algorithm: publicKey.algorithm,
+            online: false,
+            addedAt: new Date().toISOString(),
         }
-
-        if (normalizedId === currentUserId) {
-            return rejectWithValue('You cannot add yourself as a contact.')
-        }
-
-        try {
-            const publicKey = await keyService.getPublicKey(normalizedId)
-
-            return {
-                id: normalizedId,
-                userId: normalizedId,
-                name: displayName,
-                initials: getInitials(displayName),
-                color: colorFromId(normalizedId),
-                fingerprint: publicKey.fingerprint,
-                algorithm: publicKey.algorithm,
-                online: false,
-                addedAt: new Date().toISOString(),
-            }
-        } catch (error) {
-            return rejectWithValue(
-                getApiErrorMessage(
-                    error,
-                    'No public key was found for that user ID. The user must finish key setup first.',
-                ),
-            )
-        }
+    } catch (error) {
+        return rejectWithValue(
+            getApiErrorMessage(
+                error,
+                'No public key was found for that user. The user must finish key setup first.',
+            ),
+        )
+    }
     },
 )
 
 export const ensureIncomingContact = createAsyncThunk(
     'contacts/ensureIncomingContact',
-    async (userId, {getState}) => {
+    async (publicId, { getState }) => {
         const existing = getState().contacts.items.find(
-            (contact) => contact.userId === userId,
+            (contact) => contact.publicId === publicId,
         )
 
         if (existing) return existing
 
-        const name = fallbackContactName(userId)
+        const name = fallbackContactName(publicId)
 
         return {
-            id: userId,
-            userId,
+            publicId,
             name,
             initials: getInitials(name),
-            color: colorFromId(userId),
+            color: colorFromId(publicId),
             fingerprint: null,
             algorithm: 'ECDH-P256',
             online: true,
@@ -91,13 +89,13 @@ const contactsSlice = createSlice({
     reducers: {
         removeContact(state, action) {
             state.items = state.items.filter(
-                (contact) => contact.userId !== action.payload,
+                (contact) => contact.publicId !== action.payload,
             )
         },
 
         setContactPresence(state, action) {
             const contact = state.items.find(
-                (item) => item.userId === action.payload.userId,
+                (item) => item.publicId === action.payload.publicId,
             )
 
             if (contact) {
@@ -144,7 +142,7 @@ const contactsSlice = createSlice({
                 state.status = 'ready'
 
                 const index = state.items.findIndex(
-                    (contact) => contact.userId === action.payload.userId,
+                    (contact) => contact.publicId === action.payload.publicId,
                 )
 
                 if (index >= 0) {
@@ -161,7 +159,7 @@ const contactsSlice = createSlice({
 
             .addCase(ensureIncomingContact.fulfilled, (state, action) => {
                 const exists = state.items.some(
-                    (contact) => contact.userId === action.payload.userId,
+                    (contact) => contact.publicId === action.payload.publicId,
                 )
 
                 if (!exists) {
