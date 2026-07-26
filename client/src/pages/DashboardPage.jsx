@@ -13,7 +13,9 @@ export default function DashboardPage() {
     const dispatch = useDispatch()
     const navigate = useNavigate()
     const [searchParams, setSearchParams] = useSearchParams()
-    const currentUserId = useSelector((state) => state.auth.user?.id)
+    const currentUserPublicId = useSelector(
+    (state) => state.auth.user?.publicId,
+    )
     const contacts = useSelector((state) => state.contacts.items)
     const messagesState = useSelector((state) => state.messages)
     const socketStatus = useSelector((state) => state.system.socketStatus)
@@ -24,9 +26,9 @@ export default function DashboardPage() {
     const listRef = useRef(null)
     const selectedId = searchParams.get('contact')
     const selectedContact = contacts.find(
-        (contact) => contact.userId === selectedId,
+    (contact) => contact.publicId === selectedId,
     )
-    const selectedContactId = selectedContact?.userId
+    const selectedContactId = selectedContact?.publicId
     const messages = selectedId
         ? messagesState.byContact[selectedId] || []
         : []
@@ -45,13 +47,13 @@ export default function DashboardPage() {
         if (!normalizedQuery) return contacts
 
         return contacts.filter((contact) =>
-            `${contact.name} ${contact.userId}`.toLowerCase().includes(normalizedQuery),
+            `${contact.name} ${contact.publicId}`.toLowerCase().includes(normalizedQuery),
         )
     }, [contacts, query])
 
     useEffect(() => {
         if (!selectedId && contacts.length > 0) {
-            setSearchParams({contact: contacts[0].userId}, {replace: true})
+            setSearchParams({contact: contacts[0].publicId}, {replace: true})
         }
     }, [contacts, selectedId, setSearchParams])
 
@@ -78,7 +80,7 @@ export default function DashboardPage() {
         if (!text || !selectedContact || sending) return
 
         const result = await dispatch(
-            sendEncryptedMessage({contactId: selectedContact.userId, text}),
+            sendEncryptedMessage({contactId: selectedContact.publicId, text}),
         )
 
         if (sendEncryptedMessage.fulfilled.match(result)) setDraft('')
@@ -127,15 +129,15 @@ export default function DashboardPage() {
                     <div className="conversation-list">
                         {filteredContacts.map((contact) => {
                             const contactMessages =
-                                messagesState.byContact[contact.userId] || []
+                                messagesState.byContact[contact.publicId] || []
                             const latestMessage = contactMessages.at(-1)
-                            const unread = messagesState.unreadByContact[contact.userId] || 0
+                            const unread = messagesState.unreadByContact[contact.publicId] || 0
 
                             return (
                                 <button
-                                    key={contact.userId}
-                                    className={`conversation-item ${selectedId === contact.userId ? 'selected' : ''}`}
-                                    onClick={() => selectContact(contact.userId)}
+                                    key={contact.publicId}
+                                    className={`conversation-item ${selectedId === contact.publicId ? 'selected' : ''}`}
+                                    onClick={() => selectContact(contact.publicId)}
                                 >
                                     <Avatar
                                         initials={contact.initials}
@@ -274,7 +276,7 @@ export default function DashboardPage() {
                 <AddContactModal
                     onClose={() => setShowAddContact(false)}
                     onAdded={(contact) =>
-                        setSearchParams({contact: contact.userId}, {replace: true})
+                        setSearchParams({contact: contact.publicId}, {replace: true})
                     }
                 />
             )}

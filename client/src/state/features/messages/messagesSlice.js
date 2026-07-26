@@ -5,15 +5,16 @@ import {keyService} from '../../../services/keyService.js'
 import {messageService} from '../../../services/messageService.js'
 import {socketService} from '../../../services/socketService.js'
 
-async function decryptConversationMessage(message, currentUserId, contactPublicKey) {
-    const isOutgoing = message.senderId === currentUserId
+async function decryptConversationMessage(message, currentUserPublicId, contactPublicKey) {
+    const isOutgoing =
+        message.senderPublicId === currentUserPublicId
     const counterpartyPublicKey = isOutgoing
         ? contactPublicKey
         : message.ephemeralPublicKey
 
     try {
         const text = await decryptMessage({
-            currentUserId,
+            currentUserPublicId,
             counterpartyPublicKey,
             message,
         })
@@ -31,7 +32,8 @@ async function decryptConversationMessage(message, currentUserId, contactPublicK
 export const loadConversation = createAsyncThunk(
     'messages/loadConversation',
     async ({contactId, page = 1, limit = 50}, {getState, rejectWithValue}) => {
-        const currentUserId = getState().auth.user?.id
+        const currentUserPublicId =
+                                    getState().auth.user?.publicId
 
         try {
             const [conversation, publicKey] = await Promise.all([
@@ -41,7 +43,7 @@ export const loadConversation = createAsyncThunk(
 
             const messages = await Promise.all(
                 conversation.messages.map((message) =>
-                    decryptConversationMessage(message, currentUserId, publicKey.key),
+                    decryptConversationMessage(message, currentUserPublicId, publicKey.key),
                 ),
             )
 
@@ -65,13 +67,13 @@ export const loadConversation = createAsyncThunk(
 export const sendEncryptedMessage = createAsyncThunk(
     'messages/sendEncryptedMessage',
     async ({contactId, text}, {getState, rejectWithValue}) => {
-        const currentUserId = getState().auth.user?.id
+        const currentUserPublicId = getState().auth.user?.publicId
 
         try {
             const publicKey = await keyService.getPublicKey(contactId)
             const encryptedPayload = await encryptMessage({
-                senderId: currentUserId,
-                receiverId: contactId,
+                senderPublicId: currentUserPublicId,
+                receiverPublicId: contactId,
                 receiverPublicKey: publicKey.key,
                 plaintext: text,
             })
@@ -89,7 +91,7 @@ export const sendEncryptedMessage = createAsyncThunk(
                 messageId,
                 timestamp,
                 nonce,
-                receiverId: contactId,
+                receiverPublicId: contactId,
                 ...encryptedPayload,
             }
 
@@ -108,8 +110,8 @@ export const sendEncryptedMessage = createAsyncThunk(
                 transport,
                 message: {
                     id: messageId,
-                    senderId: currentUserId,
-                    receiverId: contactId,
+                    senderPublicId: currentUserPublicId,
+                    receiverPublicId: contactId,
                     ...encryptedPayload,
                     text,
                     status: 'SENT',
@@ -130,17 +132,18 @@ export const sendEncryptedMessage = createAsyncThunk(
 export const decryptRealtimeMessage = createAsyncThunk(
     'messages/decryptRealtimeMessage',
     async (message, {getState, rejectWithValue}) => {
-        const currentUserId = getState().auth.user?.id
+        const currentUserPublicId =
+            getState().auth.user?.publicId
 
         try {
             const text = await decryptMessage({
-                currentUserId,
+                currentUserPublicId,
                 counterpartyPublicKey: message.ephemeralPublicKey,
                 message,
             })
 
             return {
-                contactId: message.senderId,
+                contactId: message.senderPublicId,
                 message: {
                     ...message,
                     text,
@@ -151,7 +154,7 @@ export const decryptRealtimeMessage = createAsyncThunk(
             }
         } catch {
             return rejectWithValue({
-                contactId: message.senderId,
+                contactId: message.senderPublicId,
                 message: {
                     ...message,
                     text: 'Unable to decrypt this incoming message.',
