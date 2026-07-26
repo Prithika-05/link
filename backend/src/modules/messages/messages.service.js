@@ -35,7 +35,7 @@ export class MessageService {
   /**
    * Validate replay protection.
    */
-  async validateReplayProtection(senderId, data) {
+  async validateReplayProtection(senderPublicId, data) {
     const now = Date.now();
 
     if (
@@ -43,7 +43,6 @@ export class MessageService {
       REPLAY_WINDOW_MS
     ) {
       await this.securityService.log({
-        userId: senderId,
         event: SECURITY_EVENT.REPLAY_ATTACK,
         severity: SECURITY_SEVERITY.HIGH,
         metadata: {
@@ -53,7 +52,7 @@ export class MessageService {
       });
 
       throw new ValidationError(
-        'Message timestamp is invalid.'
+        'Message timestamp is invalpublicId.'
       );
     }
 
@@ -68,7 +67,6 @@ export class MessageService {
 
     if (messageExists) {
       await this.securityService.log({
-        userId: senderId,
         event: SECURITY_EVENT.REPLAY_ATTACK,
         severity: SECURITY_SEVERITY.HIGH,
         metadata: {
@@ -87,7 +85,6 @@ export class MessageService {
 
     if (nonceExists) {
       await this.securityService.log({
-        userId: senderId,
         event: SECURITY_EVENT.REPLAY_ATTACK,
         severity: SECURITY_SEVERITY.HIGH,
         metadata: {
@@ -119,11 +116,25 @@ export class MessageService {
   /**
    * Send an encrypted message.
    */
-  async send(senderId, data) {
+  async send(senderPublicId, data) {
     await this.validateReplayProtection(
-      senderId,
+      senderPublicId,
       data
     );
+
+    const sender = await this.prisma.user.findUnique({
+      where: {
+        publicId: senderPublicId,
+      },
+      select: {
+        id: true,
+        publicId: true,
+      },
+    });
+
+    if (!sender) {
+      throw new NotFoundError('Sender not found.');
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const receiver = await tx.user.findUnique({
@@ -141,7 +152,7 @@ export class MessageService {
       throw new NotFoundError('Receiver not found.');
     }
 
-    const publicKey = await tx.publicKey.findFirst({
+   const publicKey = await tx.publicKey.findFirst({
       where: {
         userId: receiver.id,
       },
@@ -155,7 +166,7 @@ export class MessageService {
 
     const message = await tx.message.create({
       data: {
-        senderId,
+        senderId: sender.id,
         receiverId: receiver.id,
 
         ciphertext: data.ciphertext,
@@ -169,11 +180,25 @@ export class MessageService {
 
       await this.auditService.log({
         prisma: tx,
-        userId: senderId,
+        userId: sender.id,
         action: AUDIT_ACTION.MESSAGE_SENT,
       });
 
-      return message;
+      return {
+        id: message.id,
+
+        senderPublicId: sender.publicId,
+        receiverPublicId: receiver.publicId,
+
+        ciphertext: message.ciphertext,
+        iv: message.iv,
+        authTag: message.authTag,
+        ephemeralPublicKey: message.ephemeralPublicKey,
+
+        type: message.type,
+        status: message.status,
+        createdAt: message.createdAt,
+      };
     });
   }
 
@@ -189,15 +214,39 @@ export class MessageService {
     const pagination =
       getPagination(page, limit);
 
+    const [sender, receiver] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: {
+          publicId: userA,
+        },
+        select: {
+          id: true,
+        },
+      }),
+
+      this.prisma.user.findUnique({
+        where: {
+          publicId: userB,
+        },
+        select: {
+          id: true,
+        },
+      }),
+    ]);
+
+    if (!sender || !receiver) {
+      throw new NotFoundError('User not found.');
+    }
+
     const where = {
       OR: [
         {
-          senderId: userA,
-          receiverId: userB,
+          senderId: sender.id,
+          receiverId: receiver.id,
         },
         {
-          senderId: userB,
-          receiverId: userA,
+          senderId: receiver.id,
+          receiverId: sender.id,
         },
       ],
     };
@@ -217,20 +266,21 @@ export class MessageService {
 
           select: {
             id: true,
-            senderId: true,
-            receiverId: true,
-             sender: {
+
+            sender: {
               select: {
                 publicId: true,
                 username: true,
               },
             },
+
             receiver: {
               select: {
                 publicId: true,
                 username: true,
               },
             },
+
             ciphertext: true,
             iv: true,
             authTag: true,
@@ -247,7 +297,21 @@ export class MessageService {
       ]);
 
     return {
-      messages: messages.reverse(),
+        messages: messages.reverse().map((message) => ({
+        id: message.id,
+
+        senderPublicId: message.sender.publicId,
+        receiverPublicId: message.receiver.publicId,
+
+        ciphertext: message.ciphertext,
+        iv: message.iv,
+        authTag: message.authTag,
+        ephemeralPublicKey: message.ephemeralPublicKey,
+
+        status: message.status,
+        type: message.type,
+        createdAt: message.createdAt,
+      })),  
 
       pagination: buildPagination(
         pagination.page,
@@ -260,13 +324,25 @@ export class MessageService {
   /**
    * Mark delivered.
    */
-  async markDelivered(messageId, userId) {
-    const message =
-      await this.prisma.message.findUnique({
-        where: {
-          id: messageId,
-        },
-      });
+  async markDelivered(messageId, userpublicId) {
+    const message = await this.prisma.message.findUnique({
+      where: {
+        id: messageId,
+      },
+    });
+
+    const user = await this.prisma.user.findUnique({
+      where: {
+        publicId: userpublicId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User not found.');
+    }
 
     if (!message) {
       throw new NotFoundError(
@@ -274,7 +350,7 @@ export class MessageService {
       );
     }
 
-    if (message.receiverId !== userId) {
+    if (message.receiverId  !== user.id) {
       throw new AuthorizationError(
         'You are not authorized to update this message.'
       );
@@ -294,13 +370,26 @@ export class MessageService {
   /**
    * Mark read.
    */
-  async markRead(messageId, userId) {
+  async markRead(messageId, userpublicId) {
     const message =
       await this.prisma.message.findUnique({
         where: {
-          id: messageId,
+           id: messageId,
         },
       });
+
+    const user = await this.prisma.user.findUnique({
+      where: {
+        publicId: userpublicId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User not found.');
+    }
 
     if (!message) {
       throw new NotFoundError(
@@ -308,7 +397,7 @@ export class MessageService {
       );
     }
 
-    if (message.receiverId !== userId) {
+    if (message.receiverId !== user.id) { 
       throw new AuthorizationError(
         'You are not authorized to update this message.'
       );

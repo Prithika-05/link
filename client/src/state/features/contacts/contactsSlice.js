@@ -1,7 +1,7 @@
 import {createAsyncThunk, createSlice} from '@reduxjs/toolkit'
 import {getApiErrorMessage} from '../../../api/apiError.js'
 import {keyService} from '../../../services/keyService.js'
-import {loadStoredContacts} from '../../../services/contactStorage.js'
+import {loadStoredContacts, saveStoredContacts,} from '../../../services/contactStorage.js'
 import {
     colorFromId,
     fallbackContactName,
@@ -31,7 +31,7 @@ export const addContact = createAsyncThunk(
     try {
         const publicKey = await keyService.getPublicKey(normalizedId)
 
-        return {
+        const contact = {
             publicId: normalizedId,
             name: displayName,
             initials: getInitials(displayName),
@@ -41,6 +41,17 @@ export const addContact = createAsyncThunk(
             online: false,
             addedAt: new Date().toISOString(),
         }
+
+        const existing = getState().contacts.items
+
+        const updated = [
+            contact,
+            ...existing.filter((item) => item.publicId !== contact.publicId),
+        ]
+
+        saveStoredContacts(currentUserId, updated)
+
+        return contact
     } catch (error) {
         return rejectWithValue(
             getApiErrorMessage(

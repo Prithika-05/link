@@ -13,7 +13,7 @@ export class MessagesController {
   send = async (request, reply) => {
     const message =
       await this.messagesService.send(
-        request.user.sub,
+        request.user.publicId,
         request.body
       );
 
@@ -29,7 +29,7 @@ export class MessagesController {
     request,
     reply
   ) => {
-    const { userId } = request.params;
+    const { publicId } = request.params;
 
     const page = Number(
       request.query.page ?? 1
@@ -41,8 +41,8 @@ export class MessagesController {
 
     const result =
       await this.messagesService.conversation(
-        request.user.sub,
-        userId,
+        request.user.publicId,
+        publicId,
         page,
         limit
       );
@@ -61,7 +61,7 @@ export class MessagesController {
     const message =
       await this.messagesService.markDelivered(
         request.params.messageId,
-        request.user.sub
+        request.user.publicId
       );
 
     return successResponse(
@@ -78,7 +78,7 @@ export class MessagesController {
     const message =
       await this.messagesService.markRead(
         request.params.messageId,
-        request.user.sub
+        request.user.publicId
       );
 
     return successResponse(

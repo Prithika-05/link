@@ -13,8 +13,8 @@ const messageSchema = {
 
   required: [
     'id',
-    'senderId',
-    'receiverId',
+    'senderPublicId',
+    'receiverPublicId',
     'ciphertext',
     'iv',
     'authTag',
@@ -28,12 +28,14 @@ const messageSchema = {
       type: 'string',
     },
 
-    senderId: {
+    senderPublicId: {
       type: 'string',
+      format: 'uuid',
     },
 
-    receiverId: {
+    receiverPublicId: {
       type: 'string',
+      format: 'uuid',
     },
 
     ciphertext: {
@@ -92,7 +94,7 @@ export const sendMessageSchema = {
       'timestamp',
       'nonce',
 
-      'receiverId',
+      'receiverPublicId',
 
       'ciphertext',
       'iv',
@@ -128,8 +130,9 @@ export const sendMessageSchema = {
         maxLength: 128,
       },
 
-      receiverId: {
+      receiverPublicId: {
         type: 'string',
+        format: 'uuid',
       },
 
       ciphertext: {
@@ -203,11 +206,12 @@ export const conversationSchema = {
   params: {
     type: 'object',
 
-    required: ['userId'],
+    required: ['publicId'],
 
     properties: {
-      userId: {
+      publicId: {
         type: 'string',
+        format: 'uuid',
       },
     },
   },

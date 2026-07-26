@@ -41,7 +41,7 @@ export default async function messagesRoutes(
    * Retrieve conversation history.
    */
   fastify.get(
-    '/:userId',
+    '/:publicId',
     {
       preHandler: [authenticate],
 

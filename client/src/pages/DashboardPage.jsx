@@ -235,7 +235,7 @@ export default function DashboardPage() {
                                                 key={message.id}
                                                 message={message}
                                                 contact={selectedContact}
-                                                outgoing={message.senderId === currentUserId}
+                                                outgoing={message.senderPublicId === currentUserPublicId}
                                             />
                                         ))}
                                     </>
