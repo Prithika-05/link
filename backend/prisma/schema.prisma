@@ -7,20 +7,25 @@ datasource db {
 }
 
 model User {
-  id               String          @id @default(cuid())
-  username         String          @unique
-  email            String          @unique
-  passwordHash     String
-  status           UserStatus      @default(OFFLINE)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  auditLogs        AuditLog[]
-  deviceSessions   DeviceSession[]
-  receivedMessages Message[]       @relation("ReceivedMessages")
-  sentMessages     Message[]       @relation("SentMessages")
-  publicKeys       PublicKey[]
-  refreshTokens    RefreshToken[]
-  securityEvents   SecurityEvent[]
+  id                 String          @id @default(cuid())
+  publicId           String          @unique @default(cuid())
+
+  username           String          @unique
+  email              String          @unique
+  passwordHash       String
+
+  status             UserStatus      @default(OFFLINE)
+
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  auditLogs          AuditLog[]
+  deviceSessions     DeviceSession[]
+  receivedMessages   Message[]       @relation("ReceivedMessages")
+  sentMessages       Message[]       @relation("SentMessages")
+  publicKeys         PublicKey[]
+  refreshTokens      RefreshToken[]
+  securityEvents     SecurityEvent[]
 }
 
 model PublicKey {

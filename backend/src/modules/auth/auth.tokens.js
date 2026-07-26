@@ -29,6 +29,7 @@ export class TokenService {
         jti: randomUUID(),
         type: TOKEN_TYPE.ACCESS,
         sub: user.id,
+        publicId: user.publicId,
         email: user.email,
         username: user.username,
       },

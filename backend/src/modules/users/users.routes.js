@@ -64,13 +64,13 @@ export default async function usersRoutes(
    * Get user by ID.
    */
   fastify.get(
-    '/:id',
+    '/:publicId',
     {
       preHandler: [authenticate],
 
       schema: getUserByIdSchema,
     },
-    controller.getUserById
+    controller.getUserByPublicId
   );
 
   /**

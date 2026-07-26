@@ -4,13 +4,13 @@ const userSchema = {
   type: 'object',
 
   required: [
-    'id',
+    'publicId',
     'username',
     'status',
   ],
 
   properties: {
-    id: {
+    publicId: {
       type: 'string',
     },
 
@@ -90,10 +90,10 @@ export const getUserByIdSchema = {
   params: {
     type: 'object',
 
-    required: ['id'],
+    required: ['publicId'],
 
     properties: {
-      id: {
+      publicId: {
         type: 'string',
       },
     },

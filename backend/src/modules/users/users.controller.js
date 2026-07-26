@@ -30,10 +30,13 @@ export class UsersController {
   /**
    * Get a public user profile by ID.
    */
-  getUserById = async (request, reply) => {
+  getUserByPublicId = async (
+    request,
+    reply
+  ) => {
     const user =
-      await this.usersService.getUserById(
-        request.params.id
+      await this.usersService.getUserByPublicId(
+        request.params.publicId
       );
 
     return successResponse(

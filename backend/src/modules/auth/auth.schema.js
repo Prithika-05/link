@@ -19,13 +19,13 @@ const userSchema = {
   type: 'object',
 
   required: [
-    'id',
+    'publicId',
     'username',
     'email',
   ],
 
   properties: {
-    id: {
+    publicId: {
       type: 'string',
     },
 
@@ -50,7 +50,6 @@ const sessionSchema = {
 
   required: [
     'id',
-    'userId',
     'lastSeenAt',
     'createdAt',
   ],

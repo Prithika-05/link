@@ -37,7 +37,7 @@ export class UsersService {
         },
 
         select: {
-          id: true,
+          publicId: true,
           username: true,
           email: true,
           status: true,
@@ -66,7 +66,7 @@ export class UsersService {
         },
 
         select: {
-          id: true,
+          publicId: true,
           username: true,
           status: true,
           createdAt: true,
@@ -77,6 +77,38 @@ export class UsersService {
       throw new NotFoundError(
         'User not found.'
       );
+    }
+
+    return user;
+  }
+
+  async getUserByPublicId(publicId) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        publicId,
+      },
+      select: {
+        publicId: true,
+        username: true,
+        status: true,
+        createdAt: true,
+        publicKeys: {
+          where: {},
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+          select: {
+            fingerprint: true,
+            algorithm: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User not found.');
     }
 
     return user;
@@ -93,7 +125,7 @@ export class UsersService {
         },
 
         select: {
-          id: true,
+          publicId: true,
           username: true,
           status: true,
           createdAt: true,
@@ -137,7 +169,7 @@ export class UsersService {
 
     if (current.username === username) {
       return {
-        id: current.id,
+        publicId: current.publicId,
         username: current.username,
         email: current.email,
         updatedAt: current.updatedAt,
@@ -172,7 +204,7 @@ export class UsersService {
         },
 
         select: {
-          id: true,
+          publicId: true,
           username: true,
           email: true,
           updatedAt: true,
@@ -283,7 +315,7 @@ export class UsersService {
           },
 
           select: {
-            id: true,
+            publicId: true,
             username: true,
             status: true,
           },

@@ -13,6 +13,7 @@ import { NotFoundError } from '../../errors/NotFoundError.js';
 
 import { AuditService } from '../audit/audit.service.js';
 import { SecurityService } from '../security/security.service.js';
+import { randomUUID } from 'node:crypto';
 
 import {
   AUDIT_ACTION,
@@ -57,12 +58,14 @@ export class AuthService {
 
           return tx.user.create({
               data: {
+                  publicId: randomUUID(),
                   username,
                   email,
                   passwordHash,
               },
               select: {
                   id: true,
+                  publicId: true,
                   username: true,
                   email: true,
                   createdAt: true,
@@ -150,8 +153,8 @@ export class AuthService {
       accessToken,
       refreshToken,
 
-      user: {
-        id: user.id,
+     user: {
+        publicId: user.publicId,
         username: user.username,
         email: user.email,
       },

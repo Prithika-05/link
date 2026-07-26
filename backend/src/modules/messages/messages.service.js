@@ -126,47 +126,46 @@ export class MessageService {
     );
 
     return this.prisma.$transaction(async (tx) => {
-      const receiver =
-        await tx.user.findUnique({
-          where: {
-            id: data.receiverId,
-          },
-        });
+      const receiver = await tx.user.findUnique({
+      where: {
+        publicId: data.receiverPublicId,
+      },
+      select: {
+        id: true,
+        publicId: true,
+        username: true,
+      },
+    });
 
-      if (!receiver) {
-        throw new NotFoundError(
-          'Receiver not found.'
-        );
-      }
+    if (!receiver) {
+      throw new NotFoundError('Receiver not found.');
+    }
 
-      const publicKey =
-        await tx.publicKey.findFirst({
-          where: {
-            userId: data.receiverId,
-          },
-        });
+    const publicKey = await tx.publicKey.findFirst({
+      where: {
+        userId: receiver.id,
+      },
+    });
 
-      if (!publicKey) {
-        throw new NotFoundError(
-          'Receiver has not uploaded a public key.'
-        );
-      }
+    if (!publicKey) {
+      throw new NotFoundError(
+        'Receiver has not uploaded a public key.'
+      );
+    }
 
-      const message =
-        await tx.message.create({
-          data: {
-            senderId,
-            receiverId: data.receiverId,
+    const message = await tx.message.create({
+      data: {
+        senderId,
+        receiverId: receiver.id,
 
-            ciphertext: data.ciphertext,
-            iv: data.iv,
-            authTag: data.authTag,
-            ephemeralPublicKey:
-              data.ephemeralPublicKey,
+        ciphertext: data.ciphertext,
+        iv: data.iv,
+        authTag: data.authTag,
+        ephemeralPublicKey: data.ephemeralPublicKey,
 
-            status: MESSAGE_STATUS.SENT,
-          },
-        });
+        status: MESSAGE_STATUS.SENT,
+      },
+    });
 
       await this.auditService.log({
         prisma: tx,
@@ -220,6 +219,18 @@ export class MessageService {
             id: true,
             senderId: true,
             receiverId: true,
+             sender: {
+              select: {
+                publicId: true,
+                username: true,
+              },
+            },
+            receiver: {
+              select: {
+                publicId: true,
+                username: true,
+              },
+            },
             ciphertext: true,
             iv: true,
             authTag: true,
