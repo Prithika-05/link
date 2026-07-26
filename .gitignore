@@ -1,0 +1,83 @@
+# ==========================================
+# Environments & Secret Files
+# ==========================================
+.env
+.env.*
+!.env.example
+
+*.pem
+*.key
+*.cert
+*.crt
+
+# ==========================================
+# Dependencies
+# ==========================================
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Package manager logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================
+# Build Out puts & Temporary Artifacts
+# ==========================================
+# Client Vite build output
+frontend/dist/
+frontend/dist-ssr/
+
+# Backend build/temp files
+backend/dist/
+backend/build/
+
+# Testing coverage reports
+coverage/
+*.lcov
+.nyc_output/
+
+# Cache directories
+.cache/
+.vite/
+.eslintcache
+
+# ==========================================
+# Docker & Local Data Persistence
+# ==========================================
+# Local Postgres / Redis volume mounts if mapped locally outside Docker
+postgres_data/
+redis_data/
+
+# Drizzle Kit migration metadata overrides / generated SQL dumps
+*.sql.bak
+
+# ==========================================
+# System & Editor Files
+# ==========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Editors
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+
+# Temporary files
+*.log
+*.tmp
+*.temp
