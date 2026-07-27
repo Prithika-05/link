@@ -56,7 +56,7 @@ export class AuthService {
         .values({
           publicId: randomUUID(),
           username,
-          displayName: displayName || username, // Default to username if not provided
+          displayName: displayName, // Default to username if not provided
           email,
           passwordHash,
         })

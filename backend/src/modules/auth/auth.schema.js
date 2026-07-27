@@ -29,7 +29,6 @@ const userSchema = {
 
     displayName: {
       type: "string",
-      nullable: true,
     },
 
     email: {
@@ -138,7 +137,7 @@ export const registerSchema = {
 
       displayName: {
         type: "string",
-        minLength: 1,
+        minLength: 3,
         maxLength: 50,
       },
 
