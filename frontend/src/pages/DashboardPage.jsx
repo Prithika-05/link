@@ -210,6 +210,7 @@ export default function DashboardPage() {
                     </small>
                   </span>
                 </div>
+                {/* In DashboardPage.jsx inside the message-header actions */}
                 <div className="message-actions">
                   <button
                     aria-label="View contact fingerprint"
@@ -217,7 +218,7 @@ export default function DashboardPage() {
                   >
                     <Icon name="shield" size={19} />
                   </button>
-                </div>
+                </div>{" "}
               </header>
               <div className="encryption-banner">
                 <Icon name="lock" size={15} />

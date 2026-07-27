@@ -11,7 +11,7 @@ import {
 } from "../../utils/constants.js";
 
 import { eq, desc, or } from "drizzle-orm";
-import { users, publicKeys } from "../../db/schema.js";
+import { users, publicKeys, keyBackups } from "../../db/schema.js";
 
 export class KeysService {
   constructor(fastify) {
@@ -191,5 +191,83 @@ export class KeysService {
     return {
       message: "Public key deleted successfully.",
     };
+  }
+
+  /**
+   * Save or update user's encrypted private key backup.
+   */
+  async saveBackup(userPublicId, data) {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.publicId, userPublicId),
+      columns: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError("User not found.");
+    }
+
+    const existingBackup = await this.db.query.keyBackups.findFirst({
+      where: eq(keyBackups.userId, user.id),
+    });
+
+    if (existingBackup) {
+      const [updated] = await this.db
+        .update(keyBackups)
+        .set({
+          encryptedPrivateKey: data.encryptedPrivateKey,
+          salt: data.salt,
+          iv: data.iv,
+          fingerprint: data.fingerprint || null,
+          updatedAt: new Date(),
+        })
+        .where(eq(keyBackups.id, existingBackup.id))
+        .returning();
+
+      return updated;
+    }
+
+    const [inserted] = await this.db
+      .insert(keyBackups)
+      .values({
+        id: crypto.randomUUID(),
+        userId: user.id,
+        encryptedPrivateKey: data.encryptedPrivateKey,
+        salt: data.salt,
+        iv: data.iv,
+        fingerprint: data.fingerprint || null,
+      })
+      .returning();
+
+    return inserted;
+  }
+
+  /**
+   * Retrieve encrypted private key backup for authenticated user.
+   */
+  async getBackup(userPublicId) {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.publicId, userPublicId),
+      columns: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError("User not found.");
+    }
+
+    const backup = await this.db.query.keyBackups.findFirst({
+      where: eq(keyBackups.userId, user.id),
+      columns: {
+        encryptedPrivateKey: true,
+        salt: true,
+        iv: true,
+        fingerprint: true,
+      },
+    });
+
+    if (!backup) {
+      throw new NotFoundError("No key backup found for this account.");
+    }
+
+    return backup;
   }
 }

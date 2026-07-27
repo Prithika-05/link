@@ -239,3 +239,67 @@ export const deleteKeySchema = {
     },
   },
 };
+
+/* -------------------------------------------------------------------------- */
+/*                               Key Backup Schemas                           */
+/* -------------------------------------------------------------------------- */
+
+export const uploadBackupSchema = {
+  summary: "Upload or update encrypted private key backup",
+  tags: ["Keys"],
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["encryptedPrivateKey", "salt", "iv"],
+    properties: {
+      encryptedPrivateKey: { type: "string" },
+      salt: { type: "string" },
+      iv: { type: "string" },
+      fingerprint: { type: "string" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["success", "message", "data"],
+      properties: {
+        success: { type: "boolean" },
+        message: { type: "string" },
+        data: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            fingerprint: { type: "string", nullable: true },
+            createdAt: { type: "string" },
+            updatedAt: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+};
+
+export const getBackupSchema = {
+  summary: "Retrieve authenticated user's encrypted key backup",
+  tags: ["Keys"],
+  response: {
+    200: {
+      type: "object",
+      required: ["success", "message", "data"],
+      properties: {
+        success: { type: "boolean" },
+        message: { type: "string" },
+        data: {
+          type: "object",
+          required: ["encryptedPrivateKey", "salt", "iv"],
+          properties: {
+            encryptedPrivateKey: { type: "string" },
+            salt: { type: "string" },
+            iv: { type: "string" },
+            fingerprint: { type: "string", nullable: true },
+          },
+        },
+      },
+    },
+  },
+};
