@@ -8,15 +8,14 @@ import { keyService } from "../../../services/keyService.js";
 import { messageService } from "../../../services/messageService.js";
 import { socketService } from "../../../services/socketService.js";
 
-async function decryptConversationMessage(
-  message,
-  currentUserPublicId,
-  contactPublicKey,
-) {
+// src/state/features/messages/messagesSlice.js
+
+async function decryptConversationMessage(message, currentUserPublicId) {
   const isOutgoing = message.senderPublicId === currentUserPublicId;
-  const counterpartyPublicKey = isOutgoing
-    ? contactPublicKey
-    : message.ephemeralPublicKey;
+
+  // For incoming messages, use the ephemeral key attached to the message.
+  // For outgoing messages sent by the current user, use the receiver's ephemeral key or current key.
+  const counterpartyPublicKey = message.ephemeralPublicKey;
 
   try {
     const text = await decryptMessage({
@@ -26,7 +25,7 @@ async function decryptConversationMessage(
     });
 
     return { ...message, text, decryptionFailed: false };
-  } catch {
+  } catch (err) {
     return {
       ...message,
       text: "Unable to decrypt this message with the current device key.",
@@ -44,18 +43,14 @@ export const loadConversation = createAsyncThunk(
     const currentUserPublicId = getState().auth.user?.publicId;
 
     try {
-      const [conversation, publicKey] = await Promise.all([
-        messageService.getConversation(contactId, { page, limit }),
-        keyService.getPublicKey(contactId),
-      ]);
+      const conversation = await messageService.getConversation(contactId, {
+        page,
+        limit,
+      });
 
       const messages = await Promise.all(
         conversation.messages.map((message) =>
-          decryptConversationMessage(
-            message,
-            currentUserPublicId,
-            publicKey.key,
-          ),
+          decryptConversationMessage(message, currentUserPublicId),
         ),
       );
 
