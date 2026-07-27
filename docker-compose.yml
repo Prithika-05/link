@@ -1,138 +1,97 @@
-version: "3.9"
+version: '3.8'
 
 services:
-
-  nginx:
-    image: nginx:1.28-alpine
-    container_name: secure-chat-nginx
-    restart: unless-stopped
-
+  # ==========================================
+  # PostgreSQL Database
+  # ==========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: link_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-link_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-link_password}
+      POSTGRES_DB: ${POSTGRES_DB:-link_db}
     ports:
-      - "80:80"
-      - "443:443"
-
-    depends_on:
-      api1:
-        condition: service_healthy
-      api2:
-        condition: service_healthy
-      api3:
-        condition: service_healthy
-
+      - "5432:5432"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-link_admin} -d ${POSTGRES_DB:-link_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-    networks:
-      - backend
+  # ==========================================
+  # Redis Cache & Pub/Sub
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: link_redis
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_password}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  api1:
+  # ==========================================
+  # Node.js Backend API
+  # ==========================================
+  backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-
-    env_file:
-      - ./backend/.env
-
-    restart: unless-stopped
-
-    expose:
-      - "3000"
-
+    container_name: link_backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-link_admin}:${POSTGRES_PASSWORD:-link_password}@postgres:5432/${POSTGRES_DB:-link_db}?sslmode=disable
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      PORT: 3000
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    ports:
+      - "3000:3000"
 
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-
-    security_opt:
-      - no-new-privileges:true
-
-    read_only: true
-
-    tmpfs:
-      - /tmp
-
-    networks:
-      - backend
-
-  api2:
-    extends:
-      service: api1
-
-  api3:
-    extends:
-      service: api1
-
-  postgres:
-    image: postgres:17-alpine
-
-    restart: unless-stopped
-
-    env_file:
-      - ./backend/.env
-
+  # ==========================================
+  # React Frontend (Build Container)
+  # ==========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: link_frontend_builder
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - frontend_dist:/app/dist-volume
 
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-    networks:
-      - backend
-
-  redis:
-    image: redis:8-alpine
-
-    restart: unless-stopped
-
-    command:
-      - redis-server
-      - --appendonly
-      - yes
-
+  # ==========================================
+  # Nginx Reverse Proxy & Static File Server
+  # ==========================================
+  nginx:
+    image: nginx:alpine
+    container_name: link_nginx
+    restart: always
+    ports:
+      - "80:80"
     volumes:
-      - redis_data:/data
-
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "redis-cli",
-          "ping"
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-    networks:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - frontend_dist:/usr/share/nginx/html:ro
+    depends_on:
       - backend
+      - frontend
 
 volumes:
   postgres_data:
-
   redis_data:
-
-networks:
-  backend:
-    driver: bridge
+  frontend_dist:

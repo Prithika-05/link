@@ -1,56 +1,24 @@
-# ----------------------------------------------------
-# Stage 1 - Install Production Dependencies
-# ----------------------------------------------------
-
-FROM node:24-alpine AS dependencies
-
+# Step 1: Base image
+FROM node:20-alpine AS base
 WORKDIR /app
-
 COPY package*.json ./
 
-RUN npm ci --omit=dev
-
-# ----------------------------------------------------
-# Stage 2 - Build Application
-# ----------------------------------------------------
-
-FROM node:24-alpine AS builder
-
-WORKDIR /app
-
-COPY package*.json ./
-
+# Step 2: Dependencies stage
+FROM base AS dependencies
 RUN npm ci
 
-COPY prisma ./prisma
-
-RUN npx prisma generate
-
-COPY . .
-
-# ----------------------------------------------------
-# Stage 3 - Production Runtime
-# ----------------------------------------------------
-
-FROM node:24-alpine
+# Step 3: Production runner
+FROM base AS runner
+WORKDIR /app
 
 ENV NODE_ENV=production
 
-WORKDIR /app
-
+# Copy node_modules from dependencies
 COPY --from=dependencies /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/src ./src
-COPY --from=builder /app/package.json ./
+COPY . .
 
-USER node
-
+# Expose Fastify port
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s \
-             --timeout=5s \
-             --start-period=20s \
-             --retries=3 \
-CMD node -e "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-
-CMD ["node", "src/server.js"]
+# Run migrations and start app
+CMD ["sh", "-c", "npx drizzle-kit migrate && npm start"]
