@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ==========================================
   # PostgreSQL Database
@@ -17,7 +15,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-link_admin} -d ${POSTGRES_DB:-link_db}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-link_admin} -d ${POSTGRES_DB:-link_db}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -35,7 +37,8 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_password}", "ping"]
+      test:
+        ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_password}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -53,8 +56,9 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-link_admin}:${POSTGRES_PASSWORD:-link_password}@postgres:5432/${POSTGRES_DB:-link_db}?sslmode=disable
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN}
       PORT: 3000
     depends_on:
       postgres:

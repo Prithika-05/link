@@ -18,14 +18,17 @@ command -v openssl >/dev/null || {
 }
 
 # Static environment config
+node_env="development"
+port=3000
 pg_user="link_admin"
 pg_db="link_application"
 
+bcrypt_rounds=12
+cors_origins='http://localhost,http://localhost:5173'
 # Generate URL/YAML-safe random passwords and JWT secrets (32-byte hex strings)
 pg_pw="$(openssl rand -hex 24)"
 redis_pw="$(openssl rand -hex 24)"
-jwt_access_secret="$(openssl rand -hex 32)"
-jwt_refresh_secret="$(openssl rand -hex 32)"
+jwt_secret="$(openssl rand -hex 32)"
 
 # Restrict file permissions so secrets are only readable by the owner
 umask 077
@@ -34,6 +37,9 @@ cat >"$ENV_FILE" <<EOF
 # ==========================================
 # Database & Cache Credentials
 # ==========================================
+NODE_ENV=$node_env
+PORT=$port
+
 POSTGRES_USER=$pg_user
 POSTGRES_PASSWORD=$pg_pw
 POSTGRES_DB=$pg_db
@@ -47,10 +53,12 @@ REDIS_URL=redis://:${redis_pw}@localhost:6379
 # ==========================================
 # JWT Configuration
 # ==========================================
-JWT_ACCESS_SECRET=$jwt_access_secret
-JWT_REFRESH_SECRET=$jwt_refresh_secret
+JWT_SECRET=$jwt_secret
 JWT_ACCESS_EXPIRES_IN=15m
 JWT_REFRESH_EXPIRES_IN=7d
+
+BCRYPT_ROUNDS=$bcrypt_rounds
+CORS_ORIGINS=$cors_origins
 EOF
 
 echo "Wrote $ENV_FILE (mode 600) with fresh JWT secrets and strong DB/Redis passwords."
