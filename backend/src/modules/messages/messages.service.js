@@ -38,17 +38,21 @@ export class MessageService {
   async validateReplayProtection(data) {
     const now = Date.now();
 
-    if (Math.abs(now - data.timestamp) > REPLAY_WINDOW_MS) {
+    if (!data?.timestamp || Math.abs(now - data.timestamp) > REPLAY_WINDOW_MS) {
       await this.securityService.log({
         event: SECURITY_EVENT.REPLAY_ATTACK,
         severity: SECURITY_SEVERITY.HIGH,
         metadata: {
-          reason: "Timestamp expired",
-          timestamp: data.timestamp,
+          reason: "Timestamp expired or missing",
+          timestamp: data?.timestamp,
         },
       });
 
       throw new ValidationError("Message timestamp is invalid.");
+    }
+
+    if (!data?.messageId || !data?.nonce) {
+      throw new ValidationError("Message ID or nonce missing.");
     }
 
     const messageKey = `${REDIS_PREFIX.REPLAY}message:${data.messageId}`;
@@ -92,7 +96,8 @@ export class MessageService {
    * Send an encrypted message.
    */
   async send(senderPublicId, data) {
-    await this.validateReplayProtection(senderPublicId, data);
+    // FIX: Pass ONLY `data` (which contains messageId, timestamp, nonce)
+    await this.validateReplayProtection(data);
 
     const sender = await this.db.query.users.findFirst({
       where: eq(users.publicId, senderPublicId),

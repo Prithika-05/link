@@ -12,41 +12,19 @@ export function registerMessageGateway(io, fastify) {
     socket.on(EVENTS.MESSAGE_SEND, async (payload, callback) => {
       try {
         const senderPublicId = socket.data.user.publicId;
+        const targetPublicId = payload.receiverId || payload.receiverPublicId;
 
-        const receiver = await fastify.db.query.users.findFirst({
-          where: eq(users.publicId, payload.receiverId),
-          columns: {
-            id: true,
-            publicId: true,
-            status: true,
-          },
-        });
-
-        if (!receiver) {
-          throw new Error("Receiver not found.");
+        if (!targetPublicId) {
+          throw new Error("Receiver ID is missing.");
         }
 
-        /* Required encrypted payload check */
-        const requiredFields = [
-          "receiverId",
-          "ciphertext",
-          "iv",
-          "authTag",
-          "ephemeralPublicKey",
-        ];
-
-        for (const field of requiredFields) {
-          if (!payload?.[field]) {
-            throw new Error(`Missing required field: ${field}`);
-          }
-        }
-
+        // Save message to DB & Redis (handles replay protection)
         const message = await messageService.send(senderPublicId, {
           ...payload,
-          receiverPublicId: payload.receiverId,
+          receiverPublicId: targetPublicId,
         });
 
-        /* Sender acknowledgment */
+        // Sender socket acknowledgment (CRITICAL: MUST EXECUTE)
         if (typeof callback === "function") {
           callback({
             success: true,
@@ -58,25 +36,23 @@ export function registerMessageGateway(io, fastify) {
           });
         }
 
-        /* Direct emit to Receiver via connectionManager */
-        if (connectionManager.isConnected(receiver.id)) {
+        // Deliver to recipient via socket if online
+        const receiver = await fastify.db.query.users.findFirst({
+          where: eq(users.publicId, targetPublicId),
+          columns: { id: true, publicId: true },
+        });
+
+        if (receiver && connectionManager.isConnected(receiver.id)) {
           connectionManager.emit(receiver.id, EVENTS.MESSAGE_RECEIVE, {
             ...message,
-            senderPublicId: message.senderPublicId || senderPublicId,
+            senderPublicId,
             receiverPublicId: receiver.publicId,
           });
-          fastify.log.info(
-            { receiverId: receiver.id, publicId: receiver.publicId },
-            "Realtime message emitted to recipient.",
-          );
         }
       } catch (error) {
         fastify.log.error(
-          {
-            senderPublicId: socket.data.user.publicId,
-            error: error.message,
-          },
-          "Failed to send encrypted message.",
+          { error: error.message },
+          "Failed sending message via socket.",
         );
 
         if (typeof callback === "function") {
