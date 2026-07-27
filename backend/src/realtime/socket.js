@@ -2,12 +2,11 @@ import { Server } from "socket.io";
 import { env } from "../config/env.js";
 import { registerSocketAuth } from "./auth.js";
 
-import { registerPresenceGateway } from "./gateways/presence.gateway.js";
+import { handleUserPresence } from "./gateways/presence.gateway.js";
 import { registerMessageGateway } from "./gateways/message.gateway.js";
 import { registerReceiptHandlers } from "./gateways/receipt.gateway.js";
 import { registerTypingHandlers } from "./gateways/typing.gateway.js";
 
-import { connectionManager } from "./connection.manager.js";
 import { setupRedisAdapter, closeRedisAdapter } from "./redis.adapter.js";
 import { startCleanup, stopCleanup } from "./socket.rate-limit.js";
 
@@ -27,51 +26,32 @@ export async function initializeSocket(fastify) {
     transports: ["websocket"],
   });
 
-  /* Setup Redis adapter for scaling */
   await setupRedisAdapter(io, fastify.log);
-
-  /* Start rate limit timer */
   startCleanup();
 
-  /* Socket authentication middleware */
   registerSocketAuth(io, fastify);
 
-  /* Gateways setup */
-  registerPresenceGateway(io, fastify);
+  // Register socket listeners
   registerMessageGateway(io, fastify);
 
   io.on("connection", (socket) => {
-    const userId = socket.data.user.sub;
+    // 1. Handle presence & connection tracking in one place
+    handleUserPresence(socket, io, fastify);
 
-    connectionManager.add(userId, socket);
-
+    // 2. Register real-time handlers for this socket
     registerReceiptHandlers(socket, io, fastify);
     registerTypingHandlers(socket, io, fastify);
 
     fastify.log.debug(
       {
         socketId: socket.id,
-        userId,
+        userId: socket.data.user.sub,
         publicId: socket.data.user.publicId,
       },
       "Socket connected.",
     );
-
-    socket.on("disconnect", (reason) => {
-      connectionManager.remove(userId, socket);
-
-      fastify.log.debug(
-        {
-          socketId: socket.id,
-          userId,
-          reason,
-        },
-        "Socket disconnected.",
-      );
-    });
   });
 
-  /* Graceful shutdown hook */
   fastify.addHook("onClose", async () => {
     stopCleanup();
     await closeRedisAdapter();
@@ -79,7 +59,6 @@ export async function initializeSocket(fastify) {
       await io.close();
       io = null;
     }
-    fastify.log.info("Socket.IO instance closed.");
   });
 
   fastify.log.info("Socket.IO initialized.");

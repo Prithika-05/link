@@ -206,9 +206,8 @@ const contactsSlice = createSlice({
   initialState,
   reducers: {
     setContactPresence(state, action) {
-      const contact = state.items.find(
-        (item) => item.publicId === action.payload.publicId,
-      );
+      const targetId = action.payload.publicId || action.payload.userId;
+      const contact = state.items.find((item) => item.publicId === targetId);
 
       if (contact) {
         contact.online = action.payload.online;

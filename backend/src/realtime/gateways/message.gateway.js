@@ -26,7 +26,7 @@ export function registerMessageGateway(io, fastify) {
           throw new Error("Receiver not found.");
         }
 
-        /* Required encrypted payload */
+        /* Required encrypted payload check */
         const requiredFields = [
           "receiverId",
           "ciphertext",
@@ -58,9 +58,13 @@ export function registerMessageGateway(io, fastify) {
           });
         }
 
-        /* Deliver to recipient if online */
+        /* Direct emit to Receiver via connectionManager */
         if (connectionManager.isConnected(receiver.id)) {
           connectionManager.emit(receiver.id, EVENTS.MESSAGE_RECEIVE, message);
+          fastify.log.info(
+            { receiverId: receiver.id, publicId: receiver.publicId },
+            "Realtime message dispatched to recipient socket.",
+          );
         }
 
         fastify.log.info(

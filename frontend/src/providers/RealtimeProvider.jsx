@@ -1,4 +1,3 @@
-// src/providers/RealtimeProvider.jsx
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { REALTIME_EVENTS } from "../constants/realtimeEvents";
@@ -29,13 +28,19 @@ export default function RealtimeProvider({ children }) {
     const onConnect = () => dispatch(setSocketStatus("connected"));
     const onDisconnect = () => dispatch(setSocketStatus("disconnected"));
     const onConnectError = () => dispatch(setSocketStatus("error"));
-    const onUserOnline = ({ userId }) =>
-      dispatch(setContactPresence({ userId, online: true }));
-    const onUserOffline = ({ userId }) =>
-      dispatch(setContactPresence({ userId, online: false }));
+
+    // Handle online/offline presence using publicId
+    const onUserOnline = ({ publicId, userId }) => {
+      const targetId = publicId || userId;
+      dispatch(setContactPresence({ publicId: targetId, online: true }));
+    };
+
+    const onUserOffline = ({ publicId, userId }) => {
+      const targetId = publicId || userId;
+      dispatch(setContactPresence({ publicId: targetId, online: false }));
+    };
 
     const onMessage = async (message) => {
-      // FIX 1: Use senderPublicId instead of internal database senderId
       const senderPublicId = message.senderPublicId;
 
       if (senderPublicId) {
