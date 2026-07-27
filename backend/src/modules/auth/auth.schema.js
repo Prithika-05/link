@@ -1,5 +1,3 @@
-// src/modules/auth/auth.schema.js
-
 /**
  * ---------------------------------------------------------
  * Authentication Schemas
@@ -8,207 +6,191 @@
 
 const successSchema = {
   success: {
-    type: 'boolean',
+    type: "boolean",
   },
   message: {
-    type: 'string',
+    type: "string",
   },
 };
 
 const userSchema = {
-  type: 'object',
+  type: "object",
 
-  required: [
-    'publicId',
-    'username',
-    'email',
-  ],
+  required: ["publicId", "username", "email"],
 
   properties: {
     publicId: {
-      type: 'string',
+      type: "string",
     },
 
     username: {
-      type: 'string',
+      type: "string",
+    },
+
+    displayName: {
+      type: "string",
+      nullable: true,
     },
 
     email: {
-      type: 'string',
-      format: 'email',
+      type: "string",
+      format: "email",
     },
 
     createdAt: {
-      type: 'string',
-      format: 'date-time',
+      type: "string",
+      format: "date-time",
     },
   },
 };
 
 const sessionSchema = {
-  type: 'object',
+  type: "object",
 
-  required: [
-    'id',
-    'lastSeenAt',
-    'createdAt',
-  ],
+  required: ["id", "lastSeenAt", "createdAt"],
 
   properties: {
     id: {
-      type: 'string',
+      type: "string",
     },
 
     userId: {
-      type: 'string',
+      type: "string",
     },
 
     deviceName: {
-      type: 'string',
+      type: "string",
       nullable: true,
     },
 
     platform: {
-      type: 'string',
+      type: "string",
       nullable: true,
     },
 
     browser: {
-      type: 'string',
+      type: "string",
       nullable: true,
     },
 
     ipAddress: {
-      type: 'string',
+      type: "string",
       nullable: true,
     },
 
     userAgent: {
-      type: 'string',
+      type: "string",
       nullable: true,
     },
 
     lastSeenAt: {
-      type: 'string',
-      format: 'date-time',
+      type: "string",
+      format: "date-time",
     },
 
     createdAt: {
-      type: 'string',
-      format: 'date-time',
+      type: "string",
+      format: "date-time",
     },
   },
 };
 
 const deviceInfoProperties = {
   deviceName: {
-    type: 'string',
+    type: "string",
     minLength: 1,
     maxLength: 100,
   },
 
   platform: {
-    type: 'string',
+    type: "string",
     minLength: 1,
     maxLength: 100,
   },
 
   browser: {
-    type: 'string',
+    type: "string",
     minLength: 1,
     maxLength: 100,
   },
 };
 
-/* -------------------------------------------------------------------------- */
 /* Register */
-/* -------------------------------------------------------------------------- */
-
 export const registerSchema = {
-  summary: 'Register a new user',
+  summary: "Register a new user",
 
-  tags: ['Authentication'],
+  tags: ["Authentication"],
 
   body: {
-    type: 'object',
+    type: "object",
 
     additionalProperties: false,
 
-    required: [
-      'username',
-      'email',
-      'password',
-    ],
+    required: ["username", "email", "displayName", "password"],
 
     properties: {
       username: {
-        type: 'string',
+        type: "string",
         minLength: 3,
         maxLength: 30,
-        pattern: '^[a-zA-Z0-9_]+$',
+        pattern: "^[a-zA-Z0-9_]+$",
+      },
+
+      displayName: {
+        type: "string",
+        minLength: 1,
+        maxLength: 50,
       },
 
       email: {
-        type: 'string',
-        format: 'email',
+        type: "string",
+        format: "email",
       },
 
       password: {
-        type: 'string',
+        type: "string",
         minLength: 8,
         maxLength: 128,
-        pattern:
-          '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$',
+        pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$",
       },
     },
   },
 
   response: {
     201: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         ...successSchema,
-
         data: userSchema,
       },
     },
   },
 };
 
-/* -------------------------------------------------------------------------- */
 /* Login */
-/* -------------------------------------------------------------------------- */
-
 export const loginSchema = {
-  summary: 'Authenticate a user',
+  summary: "Authenticate a user",
 
-  tags: ['Authentication'],
+  tags: ["Authentication"],
 
   body: {
-    type: 'object',
+    type: "object",
 
     additionalProperties: false,
 
-    required: [
-      'email',
-      'password',
-    ],
+    required: ["email", "password"],
 
     properties: {
       email: {
-        type: 'string',
-        format: 'email',
+        type: "string",
+        format: "email",
       },
 
       password: {
-        type: 'string',
+        type: "string",
         minLength: 8,
         maxLength: 128,
       },
@@ -219,33 +201,25 @@ export const loginSchema = {
 
   response: {
     200: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         ...successSchema,
 
         data: {
-          type: 'object',
+          type: "object",
 
-          required: [
-            'accessToken',
-            'refreshToken',
-            'user',
-          ],
+          required: ["accessToken", "refreshToken", "user"],
 
           properties: {
             accessToken: {
-              type: 'string',
+              type: "string",
             },
 
             refreshToken: {
-              type: 'string',
+              type: "string",
             },
 
             user: userSchema,
@@ -256,25 +230,22 @@ export const loginSchema = {
   },
 };
 
-/* -------------------------------------------------------------------------- */
 /* Refresh */
-/* -------------------------------------------------------------------------- */
-
 export const refreshSchema = {
-  summary: 'Refresh authentication tokens',
+  summary: "Refresh authentication tokens",
 
-  tags: ['Authentication'],
+  tags: ["Authentication"],
 
   body: {
-    type: 'object',
+    type: "object",
 
     additionalProperties: false,
 
-    required: ['refreshToken'],
+    required: ["refreshToken"],
 
     properties: {
       refreshToken: {
-        type: 'string',
+        type: "string",
       },
 
       ...deviceInfoProperties,
@@ -283,32 +254,25 @@ export const refreshSchema = {
 
   response: {
     200: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         ...successSchema,
 
         data: {
-          type: 'object',
+          type: "object",
 
-          required: [
-            'accessToken',
-            'refreshToken',
-          ],
+          required: ["accessToken", "refreshToken"],
 
           properties: {
             accessToken: {
-              type: 'string',
+              type: "string",
             },
 
             refreshToken: {
-              type: 'string',
+              type: "string",
             },
           },
         },
@@ -317,86 +281,72 @@ export const refreshSchema = {
   },
 };
 
-/* -------------------------------------------------------------------------- */
 /* Logout */
-/* -------------------------------------------------------------------------- */
-
 export const logoutSchema = {
-  summary: 'Logout the authenticated user',
+  summary: "Logout the authenticated user",
 
-  tags: ['Authentication'],
+  tags: ["Authentication"],
 
   headers: {
-    type: 'object',
+    type: "object",
 
-    required: ['authorization'],
+    required: ["authorization"],
 
     properties: {
       authorization: {
-        type: 'string',
+        type: "string",
       },
     },
   },
 
   body: {
-    type: 'object',
+    type: "object",
 
     additionalProperties: false,
 
-    required: ['refreshToken'],
+    required: ["refreshToken"],
 
     properties: {
       refreshToken: {
-        type: 'string',
+        type: "string",
       },
     },
   },
 
   response: {
     200: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         ...successSchema,
 
         data: {
-          type: 'null',
+          type: "null",
         },
       },
     },
   },
 };
 
-/* -------------------------------------------------------------------------- */
 /* Device Sessions */
-/* -------------------------------------------------------------------------- */
-
 export const sessionsSchema = {
-  summary: 'Get active device sessions',
+  summary: "Get active device sessions",
 
-  tags: ['Authentication'],
+  tags: ["Authentication"],
 
   response: {
     200: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         ...successSchema,
 
         data: {
-          type: 'array',
+          type: "array",
           items: sessionSchema,
         },
       },
@@ -405,37 +355,33 @@ export const sessionsSchema = {
 };
 
 export const revokeSessionSchema = {
-  summary: 'Revoke a device session',
+  summary: "Revoke a device session",
 
-  tags: ['Authentication'],
+  tags: ["Authentication"],
 
   params: {
-    type: 'object',
+    type: "object",
 
-    required: ['sessionId'],
+    required: ["sessionId"],
 
     properties: {
       sessionId: {
-        type: 'string',
+        type: "string",
       },
     },
   },
 
   response: {
     200: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         ...successSchema,
 
         data: {
-          type: 'null',
+          type: "null",
         },
       },
     },
@@ -443,25 +389,21 @@ export const revokeSessionSchema = {
 };
 
 export const revokeAllSessionsSchema = {
-  summary: 'Revoke all device sessions',
+  summary: "Revoke all device sessions",
 
-  tags: ['Authentication'],
+  tags: ["Authentication"],
 
   response: {
     200: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         ...successSchema,
 
         data: {
-          type: 'null',
+          type: "null",
         },
       },
     },

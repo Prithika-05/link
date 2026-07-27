@@ -1,28 +1,22 @@
-// src/modules/auth/auth.tokens.js
+import { randomUUID } from "node:crypto";
+import ms from "ms";
+import { eq, and, desc } from "drizzle-orm";
 
-import { randomUUID } from 'node:crypto';
-import ms from 'ms';
+import { env } from "../../config/env.js";
+import { REDIS_PREFIX, TOKEN_TYPE } from "../../utils/constants.js";
 
-import { env } from '../../config/env.js';
-import {
-  REDIS_PREFIX,
-  TOKEN_TYPE,
-} from '../../utils/constants.js';
+import { AuthenticationError, NotFoundError } from "../../error.js";
 
-import { AuthenticationError } from '../../errors/AuthenticationError.js';
-import { NotFoundError } from '../../errors/NotFoundError.js';
+import { refreshTokens, deviceSessions } from "../../db/schema.js";
 
 export class TokenService {
   constructor(fastify) {
     this.jwt = fastify.jwt;
     this.redis = fastify.redis;
-    this.prisma = fastify.prisma;
+    this.db = fastify.db;
   }
 
-  /* -------------------------------------------------------------------------- */
-  /*                               Access Token                                 */
-  /* -------------------------------------------------------------------------- */
-
+  /* Access Token */
   generateAccessToken(user) {
     return this.jwt.sign(
       {
@@ -32,22 +26,16 @@ export class TokenService {
         publicId: user.publicId,
         email: user.email,
         username: user.username,
+        displayName: user.displayName ?? null,
       },
       {
         expiresIn: env.jwtAccessExpiresIn,
-      }
+      },
     );
   }
 
-  /* -------------------------------------------------------------------------- */
-  /*                              Refresh Token                                */
-  /* -------------------------------------------------------------------------- */
-
-  async generateRefreshToken(
-    user,
-    session = {},
-    parentTokenId = null
-  ) {
+  /* Refresh Token */
+  async generateRefreshToken(user, session = {}, parentTokenId = null) {
     const tokenId = randomUUID();
 
     const token = this.jwt.sign(
@@ -58,65 +46,45 @@ export class TokenService {
       },
       {
         expiresIn: env.jwtRefreshExpiresIn,
-      }
+      },
     );
 
-    const expiresAt = new Date(
-      Date.now() + ms(env.jwtRefreshExpiresIn)
-    );
+    const expiresAt = new Date(Date.now() + ms(env.jwtRefreshExpiresIn));
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.db.transaction(async (tx) => {
       let parent = null;
 
       if (parentTokenId) {
-        parent =
-          await tx.refreshToken.findUnique({
-            where: {
-              tokenId: parentTokenId,
-            },
-          });
+        parent = await tx.query.refreshTokens.findFirst({
+          where: eq(refreshTokens.tokenId, parentTokenId),
+        });
       }
 
-      const refreshToken =
-        await tx.refreshToken.create({
-          data: {
-            tokenId,
-            userId: user.id,
-            expiresAt,
-            parentId: parent?.id ?? null,
-          },
-        });
-
-      await tx.deviceSession.create({
-        data: {
+      const [refreshToken] = await tx
+        .insert(refreshTokens)
+        .values({
+          tokenId,
           userId: user.id,
-          refreshTokenId: refreshToken.id,
+          expiresAt,
+          parentId: parent?.id ?? null,
+        })
+        .returning();
 
-          deviceName:
-            session.deviceName ?? null,
-
-          platform:
-            session.platform ?? null,
-
-          browser:
-            session.browser ?? null,
-
-          ipAddress:
-            session.ipAddress ?? null,
-
-          userAgent:
-            session.userAgent ?? null,
-        },
+      await tx.insert(deviceSessions).values({
+        userId: user.id,
+        refreshTokenId: refreshToken.id,
+        deviceName: session.deviceName ?? null,
+        platform: session.platform ?? null,
+        browser: session.browser ?? null,
+        ipAddress: session.ipAddress ?? null,
+        userAgent: session.userAgent ?? null,
       });
     });
 
     return token;
   }
 
-  /* -------------------------------------------------------------------------- */
-  /*                             Token Validation                               */
-  /* -------------------------------------------------------------------------- */
-
+  /* Token Validation */
   decodeToken(token) {
     return this.jwt.decode(token);
   }
@@ -125,31 +93,23 @@ export class TokenService {
     try {
       return await this.jwt.verify(token);
     } catch {
-      throw new AuthenticationError(
-        'Invalid or expired token.'
-      );
+      throw new AuthenticationError("Invalid or expired token.");
     }
   }
 
   async verifyRefreshToken(token) {
-    const payload =
-      await this.verifyToken(token);
+    const payload = await this.verifyToken(token);
 
     if (payload.type !== TOKEN_TYPE.REFRESH) {
-      throw new AuthenticationError(
-        'Invalid refresh token.'
-      );
+      throw new AuthenticationError("Invalid refresh token.");
     }
 
-    const storedToken =
-      await this.prisma.refreshToken.findUnique({
-        where: {
-          tokenId: payload.jti,
-        },
-        include: {
-          deviceSession: true,
-        },
-      });
+    const storedToken = await this.db.query.refreshTokens.findFirst({
+      where: eq(refreshTokens.tokenId, payload.jti),
+      with: {
+        deviceSession: true,
+      },
+    });
 
     if (
       !storedToken ||
@@ -157,132 +117,88 @@ export class TokenService {
       storedToken.expiresAt < new Date()
     ) {
       throw new AuthenticationError(
-        'Refresh token has expired or been revoked.'
+        "Refresh token has expired or been revoked.",
       );
     }
 
     if (storedToken.deviceSession) {
-      await this.prisma.deviceSession.update({
-        where: {
-          id: storedToken.deviceSession.id,
-        },
-        data: {
-          lastSeenAt: new Date(),
-        },
-      });
+      await this.db
+        .update(deviceSessions)
+        .set({ lastSeenAt: new Date() })
+        .where(eq(deviceSessions.id, storedToken.deviceSession.id));
     }
 
     return payload;
   }
 
-  /* -------------------------------------------------------------------------- */
-  /*                              Refresh Revocation                            */
-  /* -------------------------------------------------------------------------- */
-
+  /* Refresh Revocation */
   async revokeRefreshToken(tokenId) {
-    await this.prisma.refreshToken.update({
-      where: {
-        tokenId,
-      },
-      data: {
-        revoked: true,
-      },
-    });
+    await this.db
+      .update(refreshTokens)
+      .set({ revoked: true })
+      .where(eq(refreshTokens.tokenId, tokenId));
   }
 
   async revokeAllRefreshTokens(userId) {
-    await this.prisma.$transaction([
-      this.prisma.refreshToken.updateMany({
-        where: {
-          userId,
-          revoked: false,
-        },
-        data: {
-          revoked: true,
-        },
-      }),
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(refreshTokens)
+        .set({ revoked: true })
+        .where(
+          and(
+            eq(refreshTokens.userId, userId),
+            eq(refreshTokens.revoked, false),
+          ),
+        );
 
-      this.prisma.deviceSession.deleteMany({
-        where: {
-          userId,
-        },
-      }),
-    ]);
+      await tx.delete(deviceSessions).where(eq(deviceSessions.userId, userId));
+    });
   }
 
-  /* -------------------------------------------------------------------------- */
-  /*                              Device Sessions                               */
-  /* -------------------------------------------------------------------------- */
-
+  /* Device Sessions */
   async getDeviceSessions(userId) {
-    return this.prisma.deviceSession.findMany({
-      where: {
-        userId,
-
-        refreshToken: {
-          revoked: false,
-        },
+    const sessions = await this.db.query.deviceSessions.findMany({
+      where: eq(deviceSessions.userId, userId),
+      with: {
+        refreshToken: true,
       },
-
-      orderBy: {
-        lastSeenAt: 'desc',
-      },
+      orderBy: [desc(deviceSessions.lastSeenAt)],
     });
+
+    return sessions.filter((s) => s.refreshToken && !s.refreshToken.revoked);
   }
 
   async revokeDeviceSession(sessionId) {
-    return this.prisma.$transaction(async (tx) => {
-      const session =
-        await tx.deviceSession.findUnique({
-          where: {
-            id: sessionId,
-          },
-        });
+    return this.db.transaction(async (tx) => {
+      const session = await tx.query.deviceSessions.findFirst({
+        where: eq(deviceSessions.id, sessionId),
+      });
 
       if (!session) {
-        throw new NotFoundError(
-          'Device session not found.'
-        );
+        throw new NotFoundError("Device session not found.");
       }
 
-      await tx.refreshToken.update({
-        where: {
-          id: session.refreshTokenId,
-        },
-        data: {
-          revoked: true,
-        },
-      });
+      await tx
+        .update(refreshTokens)
+        .set({ revoked: true })
+        .where(eq(refreshTokens.id, session.refreshTokenId));
 
-      await tx.deviceSession.delete({
-        where: {
-          id: sessionId,
-        },
-      });
+      await tx.delete(deviceSessions).where(eq(deviceSessions.id, sessionId));
     });
   }
 
-  /* -------------------------------------------------------------------------- */
-  /*                              JWT Blacklist                                 */
-  /* -------------------------------------------------------------------------- */
-
-  async blacklistToken(
-    jti,
-    expiresInSeconds
-  ) {
+  /* JWT Blacklist */
+  async blacklistToken(jti, expiresInSeconds) {
     await this.redis.set(
       `${REDIS_PREFIX.JWT_BLACKLIST}${jti}`,
-      'revoked',
-      'EX',
-      Math.max(Number(expiresInSeconds), 1)
+      "revoked",
+      "EX",
+      Math.max(Number(expiresInSeconds), 1),
     );
   }
 
   async isBlacklisted(jti) {
-    const token = await this.redis.get(
-      `${REDIS_PREFIX.JWT_BLACKLIST}${jti}`
-    );
-
+    const token = await this.redis.get(`${REDIS_PREFIX.JWT_BLACKLIST}${jti}`);
     return token !== null;
   }
 }

@@ -1,17 +1,17 @@
 // src/middlewares/auth.middleware.js
 
-import { TokenService } from '../modules/auth/auth.tokens.js';
-import { SecurityService } from '../modules/security/security.service.js';
+import { TokenService } from "../modules/auth/auth.tokens.js";
+import { SecurityService } from "../modules/security/security.service.js";
 
-import { AuthenticationError } from '../errors/AuthenticationError.js';
+import { AuthenticationError } from "../error.js";
 
 import {
   TOKEN_TYPE,
   SECURITY_EVENT,
   SECURITY_SEVERITY,
-} from '../utils/constants.js';
+} from "../utils/constants.js";
 
-export async function authenticate(request, reply) {
+export async function authenticate(request) {
   const tokenService = new TokenService(request.server);
   const securityService = new SecurityService(request.server);
 
@@ -25,32 +25,23 @@ export async function authenticate(request, reply) {
      * Only access tokens are allowed.
      */
     if (payload.type !== TOKEN_TYPE.ACCESS) {
-      throw new AuthenticationError(
-        'Invalid token type.'
-      );
+      throw new AuthenticationError("Invalid token type.");
     }
 
     /**
      * Every token must contain a unique identifier.
      */
     if (!payload.jti) {
-      throw new AuthenticationError(
-        'Invalid token.'
-      );
+      throw new AuthenticationError("Invalid token.");
     }
 
     /**
      * Check Redis blacklist.
      */
-    const revoked =
-      await tokenService.isBlacklisted(
-        payload.jti
-      );
+    const revoked = await tokenService.isBlacklisted(payload.jti);
 
     if (revoked) {
-      throw new AuthenticationError(
-        'Token has been revoked.'
-      );
+      throw new AuthenticationError("Token has been revoked.");
     }
 
     /**
@@ -68,8 +59,7 @@ export async function authenticate(request, reply) {
       ipAddress: request.ip,
 
       metadata: {
-        userAgent:
-          request.headers['user-agent'] ?? null,
+        userAgent: request.headers["user-agent"] ?? null,
         reason: error.message,
       },
     });
@@ -78,8 +68,6 @@ export async function authenticate(request, reply) {
       throw error;
     }
 
-    throw new AuthenticationError(
-      'Authentication failed.'
-    );
+    throw new AuthenticationError("Authentication failed.");
   }
 }

@@ -1,87 +1,86 @@
-// src/modules/auth/auth.service.js
-
-import { TokenService } from './auth.tokens.js';
+import { TokenService } from "./auth.tokens.js";
+import { hashPassword, verifyPassword } from "../../utils/password.js";
 
 import {
-  hashPassword,
-  verifyPassword,
-} from '../../utils/password.js';
+  ConflictError,
+  AuthenticationError,
+  NotFoundError,
+} from "../../error.js";
 
-import { ConflictError } from '../../errors/ConflictError.js';
-import { AuthenticationError } from '../../errors/AuthenticationError.js';
-import { NotFoundError } from '../../errors/NotFoundError.js';
+import { AuditService } from "../audit/audit.service.js";
+import { SecurityService } from "../security/security.service.js";
+import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 
-import { AuditService } from '../audit/audit.service.js';
-import { SecurityService } from '../security/security.service.js';
-import { randomUUID } from 'node:crypto';
-
+import { users, deviceSessions } from "../../db/schema.js";
 import {
   AUDIT_ACTION,
   SECURITY_EVENT,
   SECURITY_SEVERITY,
   TOKEN_TYPE,
-} from '../../utils/constants.js';
+} from "../../utils/constants.js";
 
 export class AuthService {
   constructor(fastify) {
-    this.prisma = fastify.prisma;
-
+    this.db = fastify.db;
     this.tokenService = new TokenService(fastify);
-
     this.auditService = new AuditService(fastify);
-
     this.securityService = new SecurityService(fastify);
   }
 
   /**
    * Register a new user.
    */
-  async register({ username, email, password }) {
-      const passwordHash = await hashPassword(password);
+  async register({ username, displayName, email, password }) {
+    const passwordHash = await hashPassword(password);
 
-      const user = await this.prisma.$transaction(async (tx) => {
-          const existingEmail = await tx.user.findUnique({
-              where: { email },
-          });
-
-          if (existingEmail) {
-              throw new ConflictError('Email is already registered.');
-          }
-
-          const existingUsername = await tx.user.findUnique({
-              where: { username },
-          });
-
-          if (existingUsername) {
-              throw new ConflictError('Username is already taken.');
-          }
-
-          return tx.user.create({
-              data: {
-                  publicId: randomUUID(),
-                  username,
-                  email,
-                  passwordHash,
-              },
-              select: {
-                  id: true,
-                  publicId: true,
-                  username: true,
-                  email: true,
-                  createdAt: true,
-              },
-          });
+    const user = await this.db.transaction(async (tx) => {
+      const existingEmail = await tx.query.users.findFirst({
+        where: eq(users.email, email),
       });
 
-      await this.auditService.log({
-          userId: user.id,
-          action: AUDIT_ACTION.REGISTER,
+      if (existingEmail) {
+        throw new ConflictError("Email is already registered.");
+      }
+
+      const existingUsername = await tx.query.users.findFirst({
+        where: eq(users.username, username),
       });
 
-      return {
-          message: 'User registered successfully.',
-          user,
-      };
+      if (existingUsername) {
+        throw new ConflictError("Username is already taken.");
+      }
+
+      const [newUser] = await tx
+        .insert(users)
+        .values({
+          publicId: randomUUID(),
+          username,
+          displayName: displayName || username, // Default to username if not provided
+          email,
+          passwordHash,
+        })
+        .returning({
+          id: users.id,
+          publicId: users.publicId,
+          username: users.username,
+          displayName: users.displayName,
+          email: users.email,
+          createdAt: users.createdAt,
+        });
+
+      return newUser;
+    });
+
+    await this.auditService.log({
+      userId: user.id,
+      action: AUDIT_ACTION.REGISTER,
+    });
+
+    return {
+      message: "User registered successfully.",
+      user,
+    };
   }
 
   /**
@@ -90,12 +89,9 @@ export class AuthService {
   async login(credentials, session = {}) {
     const { email, password } = credentials;
 
-    const user =
-      await this.prisma.user.findUnique({
-        where: {
-          email,
-        },
-      });
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
 
     if (!user) {
       await this.securityService.log({
@@ -104,16 +100,10 @@ export class AuthService {
         ipAddress: session.ipAddress,
       });
 
-      throw new AuthenticationError(
-        'Invalid email or password.'
-      );
+      throw new AuthenticationError("Invalid email or password.");
     }
 
-    const validPassword =
-      await verifyPassword(
-        password,
-        user.passwordHash
-      );
+    const validPassword = await verifyPassword(password, user.passwordHash);
 
     if (!validPassword) {
       await this.securityService.log({
@@ -126,21 +116,14 @@ export class AuthService {
         },
       });
 
-      throw new AuthenticationError(
-        'Invalid email or password.'
-      );
+      throw new AuthenticationError("Invalid email or password.");
     }
 
-    const accessToken =
-      this.tokenService.generateAccessToken(
-        user
-      );
-
-    const refreshToken =
-      await this.tokenService.generateRefreshToken(
-        user,
-        session
-      );
+    const accessToken = this.tokenService.generateAccessToken(user);
+    const refreshToken = await this.tokenService.generateRefreshToken(
+      user,
+      session,
+    );
 
     await this.auditService.log({
       userId: user.id,
@@ -152,10 +135,10 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-
-     user: {
+      user: {
         publicId: user.publicId,
         username: user.username,
+        displayName: user.displayName,
         email: user.email,
       },
     };
@@ -164,51 +147,32 @@ export class AuthService {
   /**
    * Refresh authentication tokens.
    */
-  async refresh(
-    refreshToken,
-    session = {}
-  ) {
-    const payload =
-      await this.tokenService.verifyRefreshToken(
-        refreshToken
-      );
+  async refresh(refreshToken, session = {}) {
+    const payload = await this.tokenService.verifyRefreshToken(refreshToken);
 
-    const user =
-      await this.prisma.user.findUnique({
-        where: {
-          id: payload.sub,
-        },
-      });
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.id, payload.sub),
+    });
 
     if (!user) {
-      throw new AuthenticationError(
-        'User not found.'
-      );
+      throw new AuthenticationError("User not found.");
     }
 
-    const result =
-      await this.prisma.$transaction(async () => {
-        await this.tokenService.revokeRefreshToken(
-          payload.jti
-        );
+    const result = await this.db.transaction(async () => {
+      await this.tokenService.revokeRefreshToken(payload.jti);
 
-        const accessToken =
-          this.tokenService.generateAccessToken(
-            user
-          );
+      const accessToken = this.tokenService.generateAccessToken(user);
+      const newRefreshToken = await this.tokenService.generateRefreshToken(
+        user,
+        session,
+        payload.jti,
+      );
 
-        const newRefreshToken =
-          await this.tokenService.generateRefreshToken(
-            user,
-            session,
-            payload.jti
-          );
-
-        return {
-          accessToken,
-          refreshToken: newRefreshToken,
-        };
-      });
+      return {
+        accessToken,
+        refreshToken: newRefreshToken,
+      };
+    });
 
     await this.auditService.log({
       userId: user.id,
@@ -223,48 +187,28 @@ export class AuthService {
   /**
    * Logout current session.
    */
-  async logout(
-    accessToken,
-    refreshToken = null,
-    session = {}
-  ) {
-    const payload =
-       await this.tokenService.verifyToken(
-        accessToken
-      );
+  async logout(accessToken, refreshToken = null, session = {}) {
+    const payload = await this.tokenService.verifyToken(accessToken);
 
     if (!payload) {
-      throw new AuthenticationError(
-        'Invalid token.'
-      );
+      throw new AuthenticationError("Invalid token.");
     }
 
     if (payload.type !== TOKEN_TYPE.ACCESS) {
-      throw new AuthenticationError(
-        'Invalid access token.'
-      );
+      throw new AuthenticationError("Invalid access token.");
     }
 
     const expiresInSeconds = Math.max(
-      payload.exp -
-        Math.floor(Date.now() / 1000),
-      0
+      payload.exp - Math.floor(Date.now() / 1000),
+      0,
     );
 
-    await this.tokenService.blacklistToken(
-      payload.jti,
-      expiresInSeconds
-    );
+    await this.tokenService.blacklistToken(payload.jti, expiresInSeconds);
 
     if (refreshToken) {
       const refreshPayload =
-        await this.tokenService.verifyRefreshToken(
-          refreshToken
-        );
-
-      await this.tokenService.revokeRefreshToken(
-        refreshPayload.jti
-      );
+        await this.tokenService.verifyRefreshToken(refreshToken);
+      await this.tokenService.revokeRefreshToken(refreshPayload.jti);
     }
 
     await this.auditService.log({
@@ -275,7 +219,7 @@ export class AuthService {
     });
 
     return {
-      message: 'Logged out successfully.',
+      message: "Logged out successfully.",
     };
   }
 
@@ -283,40 +227,26 @@ export class AuthService {
    * List active device sessions.
    */
   async getSessions(userId) {
-    return this.tokenService.getDeviceSessions(
-      userId
-    );
+    return this.tokenService.getDeviceSessions(userId);
   }
 
   /**
    * Revoke a single device session.
    */
-  async revokeSession(
-    userId,
-    sessionId
-  ) {
-    const session =
-      await this.prisma.deviceSession.findUnique({
-        where: {
-          id: sessionId,
-        },
-      });
+  async revokeSession(userId, sessionId) {
+    const session = await this.db.query.deviceSessions.findFirst({
+      where: eq(deviceSessions.id, sessionId),
+    });
 
     if (!session) {
-      throw new NotFoundError(
-        'Session not found.'
-      );
+      throw new NotFoundError("Session not found.");
     }
 
     if (session.userId !== userId) {
-      throw new AuthenticationError(
-        'Unauthorized.'
-      );
+      throw new AuthenticationError("Unauthorized.");
     }
 
-    await this.tokenService.revokeDeviceSession(
-      sessionId
-    );
+    await this.tokenService.revokeDeviceSession(sessionId);
 
     await this.auditService.log({
       userId,
@@ -324,8 +254,7 @@ export class AuthService {
     });
 
     return {
-      message:
-        'Device session revoked successfully.',
+      message: "Device session revoked successfully.",
     };
   }
 
@@ -333,19 +262,15 @@ export class AuthService {
    * Revoke all active sessions.
    */
   async revokeAllSessions(userId) {
-    await this.tokenService.revokeAllRefreshTokens(
-      userId
-    );
+    await this.tokenService.revokeAllRefreshTokens(userId);
 
     await this.auditService.log({
       userId,
-      action:
-        AUDIT_ACTION.ALL_SESSIONS_REVOKED,
+      action: AUDIT_ACTION.ALL_SESSIONS_REVOKED,
     });
 
     return {
-      message:
-        'All device sessions revoked successfully.',
+      message: "All device sessions revoked successfully.",
     };
   }
 }
