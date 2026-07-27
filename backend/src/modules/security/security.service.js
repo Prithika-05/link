@@ -1,26 +1,26 @@
-// src/modules/security/security.service.js
-
-import { SECURITY_SEVERITY } from '../../utils/constants.js';
+import { SECURITY_SEVERITY } from "../../utils/constants.js";
+import { securityEvents } from "../../db/schema.js";
 
 export class SecurityService {
   /**
    * @param {import('fastify').FastifyInstance} fastify
    */
   constructor(fastify) {
-    this.prisma = fastify.prisma;
+    this.db = fastify.db;
     this.logger = fastify.log;
   }
 
   /**
    * Record a security event.
    *
-   * @param {Object} data
-   * @param {string|null} data.userId
-   * @param {string} data.event
-   * @param {string} [data.severity]
-   * @param {string|null} [data.ipAddress]
-   * @param {string|null} [data.userAgent]
-   * @param {Object|null} [data.metadata]
+   * @param {Object} params
+   * @param {string|null} [params.userId]
+   * @param {string} params.event
+   * @param {string} [params.severity]
+   * @param {string|null} [params.ipAddress]
+   * @param {string|null} [params.userAgent]
+   * @param {Object|null} [params.metadata]
+   * @param {Object} [params.db] - Optional Drizzle transaction instance
    * @returns {Promise<void>}
    */
   async log({
@@ -30,17 +30,16 @@ export class SecurityService {
     ipAddress = null,
     userAgent = null,
     metadata = null,
+    db = this.db,
   }) {
     try {
-      await this.prisma.securityEvent.create({
-        data: {
-          userId,
-          event,
-          severity,
-          ipAddress,
-          userAgent,
-          metadata,
-        },
+      await db.insert(securityEvents).values({
+        userId,
+        event,
+        severity,
+        ipAddress,
+        userAgent,
+        metadata,
       });
     } catch (error) {
       this.logger.error(
@@ -50,7 +49,7 @@ export class SecurityService {
           event,
           severity,
         },
-        'Failed to write security event.'
+        "Failed to write security event.",
       );
     }
   }
