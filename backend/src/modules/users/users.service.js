@@ -125,7 +125,7 @@ export class UsersService {
   }
 
   /**
-   * Update profile (username, displayName, avatarUrl).
+   * Update profile.
    */
   async updateProfile(userId, data) {
     const username = data.username?.trim();
@@ -140,7 +140,6 @@ export class UsersService {
       throw new NotFoundError("User not found.");
     }
 
-    // Check if username is being changed and if it's already taken
     if (username && username !== current.username) {
       const existing = await this.db.query.users.findFirst({
         where: and(eq(users.username, username), ne(users.id, userId)),
@@ -212,17 +211,14 @@ export class UsersService {
   }
 
   /**
-   * Search users by username or displayName.
+   * Search users strictly by username OR email.
+   * Excluding non-unique displayName as per requirements.
    */
   async searchUsers(currentUserId, query, page, limit) {
     const pagination = getPagination(page, limit);
 
-    // Matches either @username OR displayName, excluding current user
     const searchCondition = and(
-      or(
-        ilike(users.username, `%${query}%`),
-        ilike(users.displayName, `%${query}%`),
-      ),
+      or(ilike(users.username, `%${query}%`), ilike(users.email, `%${query}%`)),
       ne(users.id, currentUserId),
     );
 
@@ -236,6 +232,7 @@ export class UsersService {
           publicId: true,
           username: true,
           displayName: true,
+          email: true,
           avatarUrl: true,
           status: true,
         },

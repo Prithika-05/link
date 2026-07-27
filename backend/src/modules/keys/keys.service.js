@@ -10,13 +10,12 @@ import {
   SECURITY_SEVERITY,
 } from "../../utils/constants.js";
 
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, or } from "drizzle-orm";
 import { users, publicKeys } from "../../db/schema.js";
 
 export class KeysService {
   constructor(fastify) {
     this.db = fastify.db;
-
     this.auditService = new AuditService(fastify);
     this.securityService = new SecurityService(fastify);
   }
@@ -40,9 +39,6 @@ export class KeysService {
         where: eq(publicKeys.userId, user.id),
       });
 
-      /**
-       * Update existing key if modified.
-       */
       if (existingKey) {
         if (
           existingKey.key === data.key &&
@@ -75,9 +71,6 @@ export class KeysService {
         return updatedKey;
       }
 
-      /**
-       * Create new public key.
-       */
       const [createdKey] = await tx
         .insert(publicKeys)
         .values({
@@ -98,11 +91,11 @@ export class KeysService {
   }
 
   /**
-   * Get one user's public key.
+   * Get public key for any target user via publicId or username.
    */
-  async get(publicId) {
+  async get(identifier) {
     const user = await this.db.query.users.findFirst({
-      where: eq(users.publicId, publicId),
+      where: or(eq(users.publicId, identifier), eq(users.username, identifier)),
       columns: {
         id: true,
       },
@@ -125,7 +118,7 @@ export class KeysService {
     });
 
     if (!key) {
-      throw new NotFoundError("Public key not found.");
+      throw new NotFoundError("Public key not found for user.");
     }
 
     return key;
@@ -160,7 +153,7 @@ export class KeysService {
   }
 
   /**
-   * Delete user public key.
+   * Delete public key.
    */
   async delete(userPublicId) {
     const user = await this.db.query.users.findFirst({
