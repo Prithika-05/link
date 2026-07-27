@@ -1,9 +1,8 @@
 // src/plugins/cors.js
+import fp from "fastify-plugin";
+import fastifyCors from "@fastify/cors";
 
-import fp from 'fastify-plugin';
-import fastifyCors from '@fastify/cors';
-
-import { env } from '../config/env.js';
+import { env } from "../config/env.js";
 
 /**
  * Fastify CORS plugin.
@@ -12,39 +11,25 @@ import { env } from '../config/env.js';
  */
 async function corsPlugin(fastify) {
   const allowedOrigins =
-    env.nodeEnv === 'production'
-      ? env.corsOrigins
-      : ['http://localhost:5173'];
+    env.nodeEnv === "production" ? env.corsOrigins : ["http://localhost:5173"];
 
   await fastify.register(fastifyCors, {
     origin: allowedOrigins,
 
     credentials: true,
 
-    methods: [
-      'GET',
-      'POST',
-      'PUT',
-      'PATCH',
-      'DELETE',
-      'OPTIONS',
-    ],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-    ],
+    allowedHeaders: ["Content-Type", "Authorization"],
 
-    exposedHeaders: [
-      'Authorization',
-    ],
+    exposedHeaders: ["Authorization"],
 
     maxAge: 86400,
   });
 
-  fastify.log.info('✅ CORS initialized');
+  fastify.log.info("CORS initialized");
 }
 
 export default fp(corsPlugin, {
-  name: 'cors',
+  name: "cors",
 });
