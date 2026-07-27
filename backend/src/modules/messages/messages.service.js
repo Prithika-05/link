@@ -6,7 +6,6 @@ import {
 } from "../../error.js";
 
 import { getPagination, buildPagination } from "../../utils/pagination.js";
-
 import {
   AUDIT_ACTION,
   MESSAGE_STATUS,
@@ -18,12 +17,15 @@ import {
 import { AuditService } from "../audit/audit.service.js";
 import { SecurityService } from "../security/security.service.js";
 
+import { eq, or, and, desc, count } from "drizzle-orm";
+import { users, publicKeys, messages } from "../../db/schema.js";
+
 const REPLAY_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 const REPLAY_TTL_SECONDS = 5 * 60;
 
 export class MessageService {
   constructor(fastify) {
-    this.prisma = fastify.prisma;
+    this.db = fastify.db;
     this.redis = fastify.redis;
 
     this.auditService = new AuditService(fastify);
@@ -33,7 +35,7 @@ export class MessageService {
   /**
    * Validate replay protection.
    */
-  async validateReplayProtection(senderPublicId, data) {
+  async validateReplayProtection(data) {
     const now = Date.now();
 
     if (Math.abs(now - data.timestamp) > REPLAY_WINDOW_MS) {
@@ -46,11 +48,10 @@ export class MessageService {
         },
       });
 
-      throw new ValidationError("Message timestamp is invalpublicId.");
+      throw new ValidationError("Message timestamp is invalid.");
     }
 
     const messageKey = `${REDIS_PREFIX.REPLAY}message:${data.messageId}`;
-
     const nonceKey = `${REDIS_PREFIX.REPLAY}nonce:${data.nonce}`;
 
     const messageExists = await this.redis.exists(messageKey);
@@ -84,7 +85,6 @@ export class MessageService {
     }
 
     await this.redis.set(messageKey, "1", "EX", REPLAY_TTL_SECONDS);
-
     await this.redis.set(nonceKey, "1", "EX", REPLAY_TTL_SECONDS);
   }
 
@@ -94,11 +94,9 @@ export class MessageService {
   async send(senderPublicId, data) {
     await this.validateReplayProtection(senderPublicId, data);
 
-    const sender = await this.prisma.user.findUnique({
-      where: {
-        publicId: senderPublicId,
-      },
-      select: {
+    const sender = await this.db.query.users.findFirst({
+      where: eq(users.publicId, senderPublicId),
+      columns: {
         id: true,
         publicId: true,
       },
@@ -108,12 +106,10 @@ export class MessageService {
       throw new NotFoundError("Sender not found.");
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const receiver = await tx.user.findUnique({
-        where: {
-          publicId: data.receiverPublicId,
-        },
-        select: {
+    return this.db.transaction(async (tx) => {
+      const receiver = await tx.query.users.findFirst({
+        where: eq(users.publicId, data.receiverPublicId),
+        columns: {
           id: true,
           publicId: true,
           username: true,
@@ -124,18 +120,17 @@ export class MessageService {
         throw new NotFoundError("Receiver not found.");
       }
 
-      const publicKey = await tx.publicKey.findFirst({
-        where: {
-          userId: receiver.id,
-        },
+      const publicKey = await tx.query.publicKeys.findFirst({
+        where: eq(publicKeys.userId, receiver.id),
       });
 
       if (!publicKey) {
         throw new NotFoundError("Receiver has not uploaded a public key.");
       }
 
-      const message = await tx.message.create({
-        data: {
+      const [message] = await tx
+        .insert(messages)
+        .values({
           senderId: sender.id,
           receiverId: receiver.id,
 
@@ -145,11 +140,10 @@ export class MessageService {
           ephemeralPublicKey: data.ephemeralPublicKey,
 
           status: MESSAGE_STATUS.SENT,
-        },
-      });
+        })
+        .returning();
 
       await this.auditService.log({
-        prisma: tx,
         userId: sender.id,
         action: AUDIT_ACTION.MESSAGE_SENT,
       });
@@ -173,28 +167,19 @@ export class MessageService {
   }
 
   /**
-   * Retrieve conversation.
+   * Retrieve conversation history.
    */
   async conversation(userA, userB, page = 1, limit = 50) {
     const pagination = getPagination(page, limit);
 
     const [sender, receiver] = await Promise.all([
-      this.prisma.user.findUnique({
-        where: {
-          publicId: userA,
-        },
-        select: {
-          id: true,
-        },
+      this.db.query.users.findFirst({
+        where: eq(users.publicId, userA),
+        columns: { id: true },
       }),
-
-      this.prisma.user.findUnique({
-        where: {
-          publicId: userB,
-        },
-        select: {
-          id: true,
-        },
+      this.db.query.users.findFirst({
+        where: eq(users.publicId, userB),
+        columns: { id: true },
       }),
     ]);
 
@@ -202,65 +187,37 @@ export class MessageService {
       throw new NotFoundError("User not found.");
     }
 
-    const where = {
-      OR: [
-        {
-          senderId: sender.id,
-          receiverId: receiver.id,
-        },
-        {
-          senderId: receiver.id,
-          receiverId: sender.id,
-        },
-      ],
-    };
+    const conversationCondition = or(
+      and(
+        eq(messages.senderId, sender.id),
+        eq(messages.receiverId, receiver.id),
+      ),
+      and(
+        eq(messages.senderId, receiver.id),
+        eq(messages.receiverId, sender.id),
+      ),
+    );
 
-    const [messages, total] = await this.prisma.$transaction([
-      this.prisma.message.findMany({
-        where,
-
-        skip: pagination.skip,
-
-        take: pagination.limit,
-
-        orderBy: {
-          createdAt: "desc",
-        },
-
-        select: {
-          id: true,
-
-          sender: {
-            select: {
-              publicId: true,
-              username: true,
-            },
-          },
-
-          receiver: {
-            select: {
-              publicId: true,
-              username: true,
-            },
-          },
-
-          ciphertext: true,
-          iv: true,
-          authTag: true,
-          ephemeralPublicKey: true,
-          status: true,
-          type: true,
-          createdAt: true,
+    const [messagesList, [{ total }]] = await Promise.all([
+      this.db.query.messages.findMany({
+        where: conversationCondition,
+        offset: pagination.skip,
+        limit: pagination.limit,
+        orderBy: [desc(messages.createdAt)],
+        with: {
+          sender: { columns: { publicId: true, username: true } },
+          receiver: { columns: { publicId: true, username: true } },
         },
       }),
 
-      this.prisma.message.count({
-        where,
-      }),
+      this.db
+        .select({ total: count() })
+        .from(messages)
+        .where(conversationCondition),
     ]);
 
     return {
-      messages: messages.reverse().map((message) => ({
+      messages: messagesList.reverse().map((message) => ({
         id: message.id,
 
         senderPublicId: message.sender.publicId,
@@ -276,27 +233,25 @@ export class MessageService {
         createdAt: message.createdAt,
       })),
 
-      pagination: buildPagination(pagination.page, pagination.limit, total),
+      pagination: buildPagination(
+        pagination.page,
+        pagination.limit,
+        Number(total),
+      ),
     };
   }
 
   /**
-   * Mark delivered.
+   * Mark message as delivered.
    */
-  async markDelivered(messageId, userpublicId) {
-    const message = await this.prisma.message.findUnique({
-      where: {
-        id: messageId,
-      },
+  async markDelivered(messageId, userPublicId) {
+    const message = await this.db.query.messages.findFirst({
+      where: eq(messages.id, messageId),
     });
 
-    const user = await this.prisma.user.findUnique({
-      where: {
-        publicId: userpublicId,
-      },
-      select: {
-        id: true,
-      },
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.publicId, userPublicId),
+      columns: { id: true },
     });
 
     if (!user) {
@@ -313,34 +268,29 @@ export class MessageService {
       );
     }
 
-    return this.prisma.message.update({
-      where: {
-        id: messageId,
-      },
-
-      data: {
+    const [updated] = await this.db
+      .update(messages)
+      .set({
         status: MESSAGE_STATUS.DELIVERED,
-      },
-    });
+        deliveredAt: new Date(),
+      })
+      .where(eq(messages.id, messageId))
+      .returning();
+
+    return updated;
   }
 
   /**
-   * Mark read.
+   * Mark message as read.
    */
-  async markRead(messageId, userpublicId) {
-    const message = await this.prisma.message.findUnique({
-      where: {
-        id: messageId,
-      },
+  async markRead(messageId, userPublicId) {
+    const message = await this.db.query.messages.findFirst({
+      where: eq(messages.id, messageId),
     });
 
-    const user = await this.prisma.user.findUnique({
-      where: {
-        publicId: userpublicId,
-      },
-      select: {
-        id: true,
-      },
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.publicId, userPublicId),
+      columns: { id: true },
     });
 
     if (!user) {
@@ -357,14 +307,15 @@ export class MessageService {
       );
     }
 
-    return this.prisma.message.update({
-      where: {
-        id: messageId,
-      },
-
-      data: {
+    const [updated] = await this.db
+      .update(messages)
+      .set({
         status: MESSAGE_STATUS.READ,
-      },
-    });
+        readAt: new Date(),
+      })
+      .where(eq(messages.id, messageId))
+      .returning();
+
+    return updated;
   }
 }

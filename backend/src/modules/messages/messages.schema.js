@@ -1,5 +1,3 @@
-// src/modules/messages/messages.schema.js
-
 /**
  * ---------------------------------------------------------
  * Message Schemas
@@ -9,161 +7,128 @@
  */
 
 const messageSchema = {
-  type: 'object',
+  type: "object",
 
   required: [
-    'id',
-    'senderPublicId',
-    'receiverPublicId',
-    'ciphertext',
-    'iv',
-    'authTag',
-    'ephemeralPublicKey',
-    'status',
-    'createdAt',
+    "id",
+    "senderPublicId",
+    "receiverPublicId",
+    "ciphertext",
+    "iv",
+    "authTag",
+    "ephemeralPublicKey",
+    "status",
+    "createdAt",
   ],
 
   properties: {
     id: {
-      type: 'string',
+      type: "string",
     },
 
     senderPublicId: {
-      type: 'string',
-      format: 'uuid',
+      type: "string",
     },
 
     receiverPublicId: {
-      type: 'string',
-      format: 'uuid',
+      type: "string",
     },
 
     ciphertext: {
-      type: 'string',
+      type: "string",
     },
 
     iv: {
-      type: 'string',
+      type: "string",
     },
 
     authTag: {
-      type: 'string',
+      type: "string",
     },
 
     ephemeralPublicKey: {
-      type: 'string',
+      type: "string",
     },
 
     type: {
-      type: 'string',
+      type: "string",
     },
 
     status: {
-      type: 'string',
-      enum: [
-        'SENT',
-        'DELIVERED',
-        'READ',
-        'FAILED',
-      ],
+      type: "string",
+      enum: ["SENT", "DELIVERED", "READ", "FAILED"],
     },
 
     createdAt: {
-      type: 'string',
-      format: 'date-time',
+      type: "string",
+      format: "date-time",
     },
   },
 };
 
-/* -------------------------------------------------------------------------- */
-/*                               Send Message                                 */
-/* -------------------------------------------------------------------------- */
-
+/* Send Message */
 export const sendMessageSchema = {
-  summary: 'Send an encrypted message',
+  summary: "Send an encrypted message",
 
-  tags: ['Messages'],
+  tags: ["Messages"],
 
   body: {
-    type: 'object',
+    type: "object",
 
     additionalProperties: false,
 
     required: [
-      'messageId',
-      'timestamp',
-      'nonce',
-
-      'receiverPublicId',
-
-      'ciphertext',
-      'iv',
-      'authTag',
-      'ephemeralPublicKey',
+      "messageId",
+      "timestamp",
+      "nonce",
+      "receiverPublicId",
+      "ciphertext",
+      "iv",
+      "authTag",
+      "ephemeralPublicKey",
     ],
 
     properties: {
-      /**
-       * Client-generated UUID.
-       * Prevents duplicate message submission.
-       */
       messageId: {
-        type: 'string',
-        format: 'uuid',
+        type: "string",
       },
 
-      /**
-       * Unix timestamp (milliseconds).
-       */
       timestamp: {
-        type: 'integer',
+        type: "integer",
         minimum: 0,
       },
 
-      /**
-       * Random cryptographic nonce.
-       */
       nonce: {
-        type: 'string',
-
+        type: "string",
         minLength: 32,
         maxLength: 128,
       },
 
       receiverPublicId: {
-        type: 'string',
-        format: 'uuid',
+        type: "string",
       },
 
       ciphertext: {
-        type: 'string',
-
+        type: "string",
         minLength: 1,
-
         maxLength: 50000,
       },
 
       iv: {
-        type: 'string',
-
+        type: "string",
         minLength: 1,
-
         maxLength: 256,
       },
 
       authTag: {
-        type: 'string',
-
+        type: "string",
         minLength: 1,
-
         maxLength: 256,
       },
 
       ephemeralPublicKey: {
-        type: 'string',
-
+        type: "string",
         minLength: 1,
-
         maxLength: 4096,
       },
     },
@@ -171,21 +136,17 @@ export const sendMessageSchema = {
 
   response: {
     201: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         success: {
-          type: 'boolean',
+          type: "boolean",
         },
 
         message: {
-          type: 'string',
+          type: "string",
         },
 
         data: messageSchema,
@@ -194,40 +155,36 @@ export const sendMessageSchema = {
   },
 };
 
-/* -------------------------------------------------------------------------- */
-/*                           Conversation History                             */
-/* -------------------------------------------------------------------------- */
-
+/* Conversation History */
 export const conversationSchema = {
-  summary: 'Retrieve conversation history',
+  summary: "Retrieve conversation history",
 
-  tags: ['Messages'],
+  tags: ["Messages"],
 
   params: {
-    type: 'object',
+    type: "object",
 
-    required: ['publicId'],
+    required: ["publicId"],
 
     properties: {
       publicId: {
-        type: 'string',
-        format: 'uuid',
+        type: "string",
       },
     },
   },
 
   querystring: {
-    type: 'object',
+    type: "object",
 
     properties: {
       page: {
-        type: 'integer',
+        type: "integer",
         minimum: 1,
         default: 1,
       },
 
       limit: {
-        type: 'integer',
+        type: "integer",
         minimum: 1,
         maximum: 100,
         default: 50,
@@ -237,40 +194,32 @@ export const conversationSchema = {
 
   response: {
     200: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         success: {
-          type: 'boolean',
+          type: "boolean",
         },
 
         message: {
-          type: 'string',
+          type: "string",
         },
 
         data: {
-          type: 'object',
+          type: "object",
 
-          required: [
-            'messages',
-            'pagination',
-          ],
+          required: ["messages", "pagination"],
 
           properties: {
             messages: {
-              type: 'array',
-
+              type: "array",
               items: messageSchema,
             },
 
             pagination: {
-              type: 'object',
+              type: "object",
             },
           },
         },
@@ -279,44 +228,37 @@ export const conversationSchema = {
   },
 };
 
-/* -------------------------------------------------------------------------- */
-/*                           Mark Delivered                                   */
-/* -------------------------------------------------------------------------- */
-
+/* Mark Delivered */
 export const markDeliveredSchema = {
-  summary: 'Mark a message as delivered',
+  summary: "Mark a message as delivered",
 
-  tags: ['Messages'],
+  tags: ["Messages"],
 
   params: {
-    type: 'object',
+    type: "object",
 
-    required: ['messageId'],
+    required: ["messageId"],
 
     properties: {
       messageId: {
-        type: 'string',
+        type: "string",
       },
     },
   },
 
   response: {
     200: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         success: {
-          type: 'boolean',
+          type: "boolean",
         },
 
         message: {
-          type: 'string',
+          type: "string",
         },
 
         data: messageSchema,
@@ -325,44 +267,37 @@ export const markDeliveredSchema = {
   },
 };
 
-/* -------------------------------------------------------------------------- */
-/*                             Mark Read                                      */
-/* -------------------------------------------------------------------------- */
-
+/* Mark Read */
 export const markReadSchema = {
-  summary: 'Mark a message as read',
+  summary: "Mark a message as read",
 
-  tags: ['Messages'],
+  tags: ["Messages"],
 
   params: {
-    type: 'object',
+    type: "object",
 
-    required: ['messageId'],
+    required: ["messageId"],
 
     properties: {
       messageId: {
-        type: 'string',
+        type: "string",
       },
     },
   },
 
   response: {
     200: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         success: {
-          type: 'boolean',
+          type: "boolean",
         },
 
         message: {
-          type: 'string',
+          type: "string",
         },
 
         data: messageSchema,
