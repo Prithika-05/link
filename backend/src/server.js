@@ -14,7 +14,7 @@ async function startServer() {
 
     await app.listen({
       host: '0.0.0.0',
-      port: env.port,
+      port: env.port || 3000,
     });
 
     app.log.info('====================================');

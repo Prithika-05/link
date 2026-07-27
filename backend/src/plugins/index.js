@@ -2,20 +2,15 @@
 
 import corsPlugin from './cors.js';
 import helmetPlugin from './helmet.js';
-
-import prismaPlugin from './prisma.js';
-
+import drizzlePlugin from './drizzle.js';
 import jwtPlugin from './jwt.js';
-
 import redisPlugin from './redis.js';
-
 import rateLimitPlugin from './rate-limit.js';
 
 const plugins = [
-
   corsPlugin,
   helmetPlugin,
-  prismaPlugin,
+  drizzlePlugin,
   jwtPlugin,
   redisPlugin,
   rateLimitPlugin,
