@@ -1,33 +1,41 @@
-// src/modules/audit/audit.service.js
+import { auditLogs } from "../../db/schema.js";
 
 export class AuditService {
+  /**
+   * @param {import('fastify').FastifyInstance} fastify
+   */
   constructor(fastify) {
-    this.prisma = fastify.prisma;
+    this.db = fastify.db;
     this.logger = fastify.log;
   }
 
   /**
    * Write an audit log.
    *
-   * If a Prisma transaction client is supplied, the audit log
-   * is written using that transaction. Otherwise the global
-   * Prisma client is used.
+   * If a Drizzle transaction client (tx) is supplied via the `db` parameter,
+   * the log is written within that transaction. Otherwise, the global
+   * database instance is used.
+   *
+   * @param {Object} params
+   * @param {string} params.userId
+   * @param {string} params.action
+   * @param {string|null} [params.ipAddress]
+   * @param {string|null} [params.userAgent]
+   * @param {Object} [params.db] - Optional Drizzle transaction instance
    */
   async log({
-    userId = null,
+    userId,
     action,
     ipAddress = null,
     userAgent = null,
-    prisma = this.prisma,
+    db = this.db,
   }) {
     try {
-      await prisma.auditLog.create({
-        data: {
-          userId,
-          action,
-          ipAddress,
-          userAgent,
-        },
+      await db.insert(auditLogs).values({
+        userId,
+        action,
+        ipAddress,
+        userAgent,
       });
     } catch (error) {
       this.logger.error(
@@ -36,7 +44,7 @@ export class AuditService {
           action,
           userId,
         },
-        'Failed to write audit log.'
+        "Failed to write audit log.",
       );
     }
   }
