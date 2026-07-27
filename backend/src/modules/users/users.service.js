@@ -4,33 +4,33 @@ import {
   ValidationError,
   AuthenticationError,
 } from "../../error.js";
+
 import { getPagination, buildPagination } from "../../utils/pagination.js";
-
 import { hashPassword, verifyPassword } from "../../utils/password.js";
-
 import { AuditService } from "../audit/audit.service.js";
-
 import { AUDIT_ACTION } from "../../utils/constants.js";
+
+import { eq, ne, ilike, and, or, count, asc } from "drizzle-orm";
+import { users } from "../../db/schema.js";
 
 export class UsersService {
   constructor(fastify) {
-    this.prisma = fastify.prisma;
+    this.db = fastify.db;
     this.auditService = new AuditService(fastify);
   }
 
   /**
-   * Get current user.
+   * Get current user profile.
    */
   async getCurrentUser(userId) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
-
-      select: {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: {
         publicId: true,
         username: true,
+        displayName: true,
         email: true,
+        avatarUrl: true,
         status: true,
         createdAt: true,
         updatedAt: true,
@@ -45,17 +45,16 @@ export class UsersService {
   }
 
   /**
-   * Get user by ID.
+   * Get public user profile by ID.
    */
   async getUserById(userId) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
-
-      select: {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: {
         publicId: true,
         username: true,
+        displayName: true,
+        avatarUrl: true,
         status: true,
         createdAt: true,
       },
@@ -68,23 +67,25 @@ export class UsersService {
     return user;
   }
 
+  /**
+   * Get public user profile by publicId (with latest public key).
+   */
   async getUserByPublicId(publicId) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        publicId,
-      },
-      select: {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.publicId, publicId),
+      columns: {
         publicId: true,
         username: true,
+        displayName: true,
+        avatarUrl: true,
         status: true,
         createdAt: true,
+      },
+      with: {
         publicKeys: {
-          where: {},
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 1,
-          select: {
+          limit: 1,
+          orderBy: (publicKeys, { desc }) => [desc(publicKeys.createdAt)],
+          columns: {
             fingerprint: true,
             algorithm: true,
             createdAt: true,
@@ -104,14 +105,13 @@ export class UsersService {
    * Get user by username.
    */
   async getUserByUsername(username) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        username,
-      },
-
-      select: {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.username, username),
+      columns: {
         publicId: true,
         username: true,
+        displayName: true,
+        avatarUrl: true,
         status: true,
         createdAt: true,
       },
@@ -125,81 +125,63 @@ export class UsersService {
   }
 
   /**
-   * Update profile.
+   * Update profile (username, displayName, avatarUrl).
    */
   async updateProfile(userId, data) {
     const username = data.username?.trim();
+    const displayName = data.displayName?.trim();
+    const avatarUrl = data.avatarUrl?.trim();
 
-    if (!username) {
-      throw new ValidationError("Username is required.");
-    }
-
-    const current = await this.prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
+    const current = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
     });
 
     if (!current) {
       throw new NotFoundError("User not found.");
     }
 
-    if (current.username === username) {
-      return {
-        publicId: current.publicId,
-        username: current.username,
-        email: current.email,
-        updatedAt: current.updatedAt,
-      };
+    // Check if username is being changed and if it's already taken
+    if (username && username !== current.username) {
+      const existing = await this.db.query.users.findFirst({
+        where: and(eq(users.username, username), ne(users.id, userId)),
+      });
+
+      if (existing) {
+        throw new ValidationError("Username is already in use.");
+      }
     }
 
-    const existing = await this.prisma.user.findFirst({
-      where: {
-        username,
-
-        NOT: {
-          id: userId,
-        },
-      },
-    });
-
-    if (existing) {
-      throw new ValidationError("Username is already in use.");
-    }
-
-    const user = await this.prisma.user.update({
-      where: {
-        id: userId,
-      },
-
-      data: {
-        username,
-      },
-
-      select: {
-        publicId: true,
-        username: true,
-        email: true,
-        updatedAt: true,
-      },
-    });
+    const [updatedUser] = await this.db
+      .update(users)
+      .set({
+        ...(username && { username }),
+        ...(displayName !== undefined && { displayName }),
+        ...(avatarUrl !== undefined && { avatarUrl }),
+      })
+      .where(eq(users.id, userId))
+      .returning({
+        publicId: users.publicId,
+        username: users.username,
+        displayName: users.displayName,
+        email: users.email,
+        avatarUrl: users.avatarUrl,
+        updatedAt: users.updatedAt,
+      });
 
     await this.auditService.log({
       userId,
       action: AUDIT_ACTION.PROFILE_UPDATED,
     });
 
-    return user;
+    return updatedUser;
   }
 
   /**
    * Change password.
    */
   async changePassword(userId, currentPassword, newPassword) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
     });
 
     if (!user) {
@@ -214,15 +196,10 @@ export class UsersService {
 
     const passwordHash = await hashPassword(newPassword);
 
-    await this.prisma.user.update({
-      where: {
-        id: userId,
-      },
-
-      data: {
-        passwordHash,
-      },
-    });
+    await this.db
+      .update(users)
+      .set({ passwordHash })
+      .where(eq(users.id, userId));
 
     await this.auditService.log({
       userId,
@@ -235,50 +212,45 @@ export class UsersService {
   }
 
   /**
-   * Search users.
+   * Search users by username or displayName.
    */
   async searchUsers(currentUserId, query, page, limit) {
     const pagination = getPagination(page, limit);
 
-    const where = {
-      username: {
-        contains: query,
-        mode: "insensitive",
-      },
+    // Matches either @username OR displayName, excluding current user
+    const searchCondition = and(
+      or(
+        ilike(users.username, `%${query}%`),
+        ilike(users.displayName, `%${query}%`),
+      ),
+      ne(users.id, currentUserId),
+    );
 
-      NOT: {
-        id: currentUserId,
-      },
-    };
-
-    const [users, total] = await this.prisma.$transaction([
-      this.prisma.user.findMany({
-        where,
-
-        skip: pagination.skip,
-
-        take: pagination.limit,
-
-        orderBy: {
-          username: "asc",
-        },
-
-        select: {
+    const [usersList, [{ total }]] = await Promise.all([
+      this.db.query.users.findMany({
+        where: searchCondition,
+        offset: pagination.skip,
+        limit: pagination.limit,
+        orderBy: [asc(users.username)],
+        columns: {
           publicId: true,
           username: true,
+          displayName: true,
+          avatarUrl: true,
           status: true,
         },
       }),
 
-      this.prisma.user.count({
-        where,
-      }),
+      this.db.select({ total: count() }).from(users).where(searchCondition),
     ]);
 
     return {
-      users,
-
-      pagination: buildPagination(pagination.page, pagination.limit, total),
+      users: usersList,
+      pagination: buildPagination(
+        pagination.page,
+        pagination.limit,
+        Number(total),
+      ),
     };
   }
 }

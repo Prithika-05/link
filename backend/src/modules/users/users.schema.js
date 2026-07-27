@@ -1,375 +1,245 @@
-// src/modules/users/users.schema.js
+/**
+ * ---------------------------------------------------------
+ * Users Schemas
+ * ---------------------------------------------------------
+ */
 
 const userSchema = {
-  type: 'object',
+  type: "object",
 
-  required: [
-    'publicId',
-    'username',
-    'status',
-  ],
+  required: ["publicId", "username", "status"],
 
   properties: {
     publicId: {
-      type: 'string',
+      type: "string",
     },
 
     username: {
-      type: 'string',
+      type: "string",
+    },
+
+    displayName: {
+      type: "string",
     },
 
     email: {
-      type: 'string',
-      format: 'email',
+      type: "string",
+      format: "email",
+    },
+
+    avatarUrl: {
+      type: "string",
+      nullable: true,
     },
 
     status: {
-      type: 'string',
-      enum: [
-        'ONLINE',
-        'OFFLINE',
-        'AWAY',
-      ],
+      type: "string",
+      enum: ["ONLINE", "OFFLINE", "AWAY"],
     },
 
     createdAt: {
-      type: 'string',
-      format: 'date-time',
+      type: "string",
+      format: "date-time",
     },
 
     updatedAt: {
-      type: 'string',
-      format: 'date-time',
+      type: "string",
+      format: "date-time",
+    },
+
+    publicKeys: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          fingerprint: { type: "string" },
+          algorithm: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+        },
+      },
     },
   },
 };
 
-/* -------------------------------------------------------------------------- */
-/*                                Current User                                */
-/* -------------------------------------------------------------------------- */
-
+/* Current User */
 export const getCurrentUserSchema = {
-  summary: 'Get authenticated user profile',
-
-  tags: ['Users'],
-
+  summary: "Get authenticated user profile",
+  tags: ["Users"],
   response: {
     200: {
-      type: 'object',
-
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
-
+      type: "object",
+      required: ["success", "message", "data"],
       properties: {
-        success: {
-          type: 'boolean',
-        },
-
-        message: {
-          type: 'string',
-        },
-
+        success: { type: "boolean" },
+        message: { type: "string" },
         data: userSchema,
       },
     },
   },
 };
 
-/* -------------------------------------------------------------------------- */
-/*                               Get User By ID                               */
-/* -------------------------------------------------------------------------- */
-
+/* Get User By ID */
 export const getUserByIdSchema = {
-  summary: 'Get public user profile',
-
-  tags: ['Users'],
-
+  summary: "Get public user profile",
+  tags: ["Users"],
   params: {
-    type: 'object',
-
-    required: ['publicId'],
-
+    type: "object",
+    required: ["publicId"],
     properties: {
-      publicId: {
-        type: 'string',
-      },
+      publicId: { type: "string" },
     },
   },
-
   response: {
     200: {
-      type: 'object',
-
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
-
+      type: "object",
+      required: ["success", "message", "data"],
       properties: {
-        success: {
-          type: 'boolean',
-        },
-
-        message: {
-          type: 'string',
-        },
-
+        success: { type: "boolean" },
+        message: { type: "string" },
         data: userSchema,
       },
     },
   },
 };
 
-/* -------------------------------------------------------------------------- */
-/*                           Get User By Username                             */
-/* -------------------------------------------------------------------------- */
-
+/* Get User By Username */
 export const getUserByUsernameSchema = {
-  summary: 'Get user by username',
-
-  tags: ['Users'],
-
+  summary: "Get user by username",
+  tags: ["Users"],
   params: {
-    type: 'object',
-
-    required: ['username'],
-
+    type: "object",
+    required: ["username"],
     properties: {
-      username: {
-        type: 'string',
-      },
+      username: { type: "string" },
     },
   },
-
   response: {
     200: {
-      type: 'object',
-
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
-
+      type: "object",
+      required: ["success", "message", "data"],
       properties: {
-        success: {
-          type: 'boolean',
-        },
-
-        message: {
-          type: 'string',
-        },
-
+        success: { type: "boolean" },
+        message: { type: "string" },
         data: userSchema,
       },
     },
   },
 };
 
-/* -------------------------------------------------------------------------- */
-/*                              Update Profile                                */
-/* -------------------------------------------------------------------------- */
-
+/* Update Profile */
 export const updateProfileSchema = {
-  summary: 'Update authenticated user profile',
-
-  tags: ['Users'],
-
+  summary: "Update authenticated user profile",
+  tags: ["Users"],
   body: {
-    type: 'object',
-
+    type: "object",
     additionalProperties: false,
-
-    required: ['username'],
-
     properties: {
       username: {
-        type: 'string',
-
+        type: "string",
         minLength: 3,
-
         maxLength: 30,
-
-        pattern: '^[a-zA-Z0-9_]+$',
+        pattern: "^[a-zA-Z0-9_]+$",
+      },
+      displayName: {
+        type: "string",
+        minLength: 1,
+        maxLength: 50,
+      },
+      avatarUrl: {
+        type: "string",
+        format: "uri",
       },
     },
   },
-
   response: {
     200: {
-      type: 'object',
-
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
-
+      type: "object",
+      required: ["success", "message", "data"],
       properties: {
-        success: {
-          type: 'boolean',
-        },
-
-        message: {
-          type: 'string',
-        },
-
+        success: { type: "boolean" },
+        message: { type: "string" },
         data: userSchema,
       },
     },
   },
 };
 
-/* -------------------------------------------------------------------------- */
-/*                             Change Password                                */
-/* -------------------------------------------------------------------------- */
-
+/* Change Password */
 export const changePasswordSchema = {
-  summary: 'Change account password',
-
-  tags: ['Users'],
-
+  summary: "Change account password",
+  tags: ["Users"],
   body: {
-    type: 'object',
-
+    type: "object",
     additionalProperties: false,
-
-    required: [
-      'currentPassword',
-      'newPassword',
-    ],
-
+    required: ["currentPassword", "newPassword"],
     properties: {
       currentPassword: {
-        type: 'string',
-
+        type: "string",
         minLength: 8,
-
         maxLength: 128,
       },
-
       newPassword: {
-        type: 'string',
-
+        type: "string",
         minLength: 8,
-
         maxLength: 128,
-
-        pattern:
-          '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$',
+        pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$",
       },
     },
   },
-
   response: {
     200: {
-      type: 'object',
-
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
-
+      type: "object",
+      required: ["success", "message", "data"],
       properties: {
-        success: {
-          type: 'boolean',
-        },
-
-        message: {
-          type: 'string',
-        },
-
-        data: {
-          type: 'null',
-        },
+        success: { type: "boolean" },
+        message: { type: "string" },
+        data: { type: "null" },
       },
     },
   },
 };
 
-/* -------------------------------------------------------------------------- */
-/*                               Search Users                                 */
-/* -------------------------------------------------------------------------- */
-
+/* Search Users */
 export const searchUsersSchema = {
-  summary: 'Search users',
-
-  tags: ['Users'],
-
+  summary: "Search users",
+  tags: ["Users"],
   querystring: {
-    type: 'object',
-
-    required: ['q'],
-
+    type: "object",
+    required: ["q"],
     properties: {
       q: {
-        type: 'string',
-
+        type: "string",
         minLength: 1,
       },
-
       page: {
-        type: 'integer',
-
+        type: "integer",
         minimum: 1,
-
         default: 1,
       },
-
       limit: {
-        type: 'integer',
-
+        type: "integer",
         minimum: 1,
-
         maximum: 100,
-
         default: 20,
       },
     },
   },
-
   response: {
     200: {
-      type: 'object',
-
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
-
+      type: "object",
+      required: ["success", "message", "data"],
       properties: {
-        success: {
-          type: 'boolean',
-        },
-
-        message: {
-          type: 'string',
-        },
-
+        success: { type: "boolean" },
+        message: { type: "string" },
         data: {
-          type: 'object',
-
-          required: [
-            'users',
-            'pagination',
-          ],
-
+          type: "object",
+          required: ["users", "pagination"],
           properties: {
             users: {
-              type: 'array',
-
+              type: "array",
               items: userSchema,
             },
-
-            pagination: {
-              type: 'object',
-            },
+            pagination: { type: "object" },
           },
         },
       },
