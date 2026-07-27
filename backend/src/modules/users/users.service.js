@@ -1,24 +1,16 @@
 // src/modules/users/users.service.js
-
-import { NotFoundError } from '../../errors/NotFoundError.js';
-import { ValidationError } from '../../errors/ValidationError.js';
-import { AuthenticationError } from '../../errors/AuthenticationError.js';
-
 import {
-  getPagination,
-  buildPagination,
-} from '../../utils/pagination.js';
+  NotFoundError,
+  ValidationError,
+  AuthenticationError,
+} from "../../error.js";
+import { getPagination, buildPagination } from "../../utils/pagination.js";
 
-import {
-  hashPassword,
-  verifyPassword,
-} from '../../utils/password.js';
+import { hashPassword, verifyPassword } from "../../utils/password.js";
 
-import { AuditService } from '../audit/audit.service.js';
+import { AuditService } from "../audit/audit.service.js";
 
-import {
-  AUDIT_ACTION,
-} from '../../utils/constants.js';
+import { AUDIT_ACTION } from "../../utils/constants.js";
 
 export class UsersService {
   constructor(fastify) {
@@ -30,26 +22,23 @@ export class UsersService {
    * Get current user.
    */
   async getCurrentUser(userId) {
-    const user =
-      await this.prisma.user.findUnique({
-        where: {
-          id: userId,
-        },
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
 
-        select: {
-          publicId: true,
-          username: true,
-          email: true,
-          status: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
+      select: {
+        publicId: true,
+        username: true,
+        email: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
 
     if (!user) {
-      throw new NotFoundError(
-        'User not found.'
-      );
+      throw new NotFoundError("User not found.");
     }
 
     return user;
@@ -59,24 +48,21 @@ export class UsersService {
    * Get user by ID.
    */
   async getUserById(userId) {
-    const user =
-      await this.prisma.user.findUnique({
-        where: {
-          id: userId,
-        },
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
 
-        select: {
-          publicId: true,
-          username: true,
-          status: true,
-          createdAt: true,
-        },
-      });
+      select: {
+        publicId: true,
+        username: true,
+        status: true,
+        createdAt: true,
+      },
+    });
 
     if (!user) {
-      throw new NotFoundError(
-        'User not found.'
-      );
+      throw new NotFoundError("User not found.");
     }
 
     return user;
@@ -95,7 +81,7 @@ export class UsersService {
         publicKeys: {
           where: {},
           orderBy: {
-            createdAt: 'desc',
+            createdAt: "desc",
           },
           take: 1,
           select: {
@@ -108,7 +94,7 @@ export class UsersService {
     });
 
     if (!user) {
-      throw new NotFoundError('User not found.');
+      throw new NotFoundError("User not found.");
     }
 
     return user;
@@ -118,24 +104,21 @@ export class UsersService {
    * Get user by username.
    */
   async getUserByUsername(username) {
-    const user =
-      await this.prisma.user.findUnique({
-        where: {
-          username,
-        },
+    const user = await this.prisma.user.findUnique({
+      where: {
+        username,
+      },
 
-        select: {
-          publicId: true,
-          username: true,
-          status: true,
-          createdAt: true,
-        },
-      });
+      select: {
+        publicId: true,
+        username: true,
+        status: true,
+        createdAt: true,
+      },
+    });
 
     if (!user) {
-      throw new NotFoundError(
-        'User not found.'
-      );
+      throw new NotFoundError("User not found.");
     }
 
     return user;
@@ -145,26 +128,20 @@ export class UsersService {
    * Update profile.
    */
   async updateProfile(userId, data) {
-    const username =
-      data.username?.trim();
+    const username = data.username?.trim();
 
     if (!username) {
-      throw new ValidationError(
-        'Username is required.'
-      );
+      throw new ValidationError("Username is required.");
     }
 
-    const current =
-      await this.prisma.user.findUnique({
-        where: {
-          id: userId,
-        },
-      });
+    const current = await this.prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+    });
 
     if (!current) {
-      throw new NotFoundError(
-        'User not found.'
-      );
+      throw new NotFoundError("User not found.");
     }
 
     if (current.username === username) {
@@ -176,45 +153,40 @@ export class UsersService {
       };
     }
 
-    const existing =
-      await this.prisma.user.findFirst({
-        where: {
-          username,
+    const existing = await this.prisma.user.findFirst({
+      where: {
+        username,
 
-          NOT: {
-            id: userId,
-          },
-        },
-      });
-
-    if (existing) {
-      throw new ValidationError(
-        'Username is already in use.'
-      );
-    }
-
-    const user =
-      await this.prisma.user.update({
-        where: {
+        NOT: {
           id: userId,
         },
+      },
+    });
 
-        data: {
-          username,
-        },
+    if (existing) {
+      throw new ValidationError("Username is already in use.");
+    }
 
-        select: {
-          publicId: true,
-          username: true,
-          email: true,
-          updatedAt: true,
-        },
-      });
+    const user = await this.prisma.user.update({
+      where: {
+        id: userId,
+      },
+
+      data: {
+        username,
+      },
+
+      select: {
+        publicId: true,
+        username: true,
+        email: true,
+        updatedAt: true,
+      },
+    });
 
     await this.auditService.log({
       userId,
-      action:
-        AUDIT_ACTION.PROFILE_UPDATED,
+      action: AUDIT_ACTION.PROFILE_UPDATED,
     });
 
     return user;
@@ -223,38 +195,24 @@ export class UsersService {
   /**
    * Change password.
    */
-  async changePassword(
-    userId,
-    currentPassword,
-    newPassword
-  ) {
-    const user =
-      await this.prisma.user.findUnique({
-        where: {
-          id: userId,
-        },
-      });
+  async changePassword(userId, currentPassword, newPassword) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+    });
 
     if (!user) {
-      throw new NotFoundError(
-        'User not found.'
-      );
+      throw new NotFoundError("User not found.");
     }
 
-    const valid =
-      await verifyPassword(
-        currentPassword,
-        user.passwordHash
-      );
+    const valid = await verifyPassword(currentPassword, user.passwordHash);
 
     if (!valid) {
-      throw new AuthenticationError(
-        'Current password is incorrect.'
-      );
+      throw new AuthenticationError("Current password is incorrect.");
     }
 
-    const passwordHash =
-      await hashPassword(newPassword);
+    const passwordHash = await hashPassword(newPassword);
 
     await this.prisma.user.update({
       where: {
@@ -268,32 +226,24 @@ export class UsersService {
 
     await this.auditService.log({
       userId,
-      action:
-        AUDIT_ACTION.PASSWORD_CHANGED,
+      action: AUDIT_ACTION.PASSWORD_CHANGED,
     });
 
     return {
-      message:
-        'Password changed successfully.',
+      message: "Password changed successfully.",
     };
   }
 
   /**
    * Search users.
    */
-  async searchUsers(
-    currentUserId,
-    query,
-    page,
-    limit
-  ) {
-    const pagination =
-      getPagination(page, limit);
+  async searchUsers(currentUserId, query, page, limit) {
+    const pagination = getPagination(page, limit);
 
     const where = {
       username: {
         contains: query,
-        mode: 'insensitive',
+        mode: "insensitive",
       },
 
       NOT: {
@@ -301,40 +251,34 @@ export class UsersService {
       },
     };
 
-    const [users, total] =
-      await this.prisma.$transaction([
-        this.prisma.user.findMany({
-          where,
+    const [users, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where,
 
-          skip: pagination.skip,
+        skip: pagination.skip,
 
-          take: pagination.limit,
+        take: pagination.limit,
 
-          orderBy: {
-            username: 'asc',
-          },
+        orderBy: {
+          username: "asc",
+        },
 
-          select: {
-            publicId: true,
-            username: true,
-            status: true,
-          },
-        }),
+        select: {
+          publicId: true,
+          username: true,
+          status: true,
+        },
+      }),
 
-        this.prisma.user.count({
-          where,
-        }),
-      ]);
+      this.prisma.user.count({
+        where,
+      }),
+    ]);
 
     return {
       users,
 
-      pagination:
-        buildPagination(
-          pagination.page,
-          pagination.limit,
-          total
-        ),
+      pagination: buildPagination(pagination.page, pagination.limit, total),
     };
   }
 }

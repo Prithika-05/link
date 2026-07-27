@@ -1,17 +1,17 @@
 // src/modules/keys/keys.service.js
 
-import { generateFingerprint } from '../../utils/crypto.js';
+import { generateFingerprint } from "../../utils/crypto.js";
 
-import { NotFoundError } from '../../errors/NotFoundError.js';
+import { NotFoundError } from "../../error.js";
 
-import { AuditService } from '../audit/audit.service.js';
-import { SecurityService } from '../security/security.service.js';
+import { AuditService } from "../audit/audit.service.js";
+import { SecurityService } from "../security/security.service.js";
 
 import {
   AUDIT_ACTION,
   SECURITY_EVENT,
   SECURITY_SEVERITY,
-} from '../../utils/constants.js';
+} from "../../utils/constants.js";
 
 export class KeysService {
   constructor(fastify) {
@@ -19,158 +19,143 @@ export class KeysService {
 
     this.auditService = new AuditService(fastify);
 
-    this.securityService =
-      new SecurityService(fastify);
+    this.securityService = new SecurityService(fastify);
   }
 
   /**
    * Upload or replace a user's public key.
    */
-async upload(userPublicId, data) {
-  return this.prisma.$transaction(async (tx) => {
-    const user = await tx.user.findUnique({
-      where: {
-        publicId: userPublicId,
-      },
-    });
+  async upload(userPublicId, data) {
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: {
+          publicId: userPublicId,
+        },
+      });
 
-    if (!user) {
-      throw new NotFoundError('User not found.');
-    }
+      if (!user) {
+        throw new NotFoundError("User not found.");
+      }
 
-    const fingerprint = generateFingerprint(data.key);
+      const fingerprint = generateFingerprint(data.key);
 
-    const existingKey = await tx.publicKey.findFirst({
-      where: {
-        userId: user.id,
-      },
-    });
+      const existingKey = await tx.publicKey.findFirst({
+        where: {
+          userId: user.id,
+        },
+      });
 
-        /**
-         * Update existing key.
-         */
-        if (existingKey) {
-          if (
-            existingKey.key === data.key &&
-            existingKey.algorithm ===
-              data.algorithm
-          ) {
-            return {
-              id: existingKey.id,
-              algorithm:
-                existingKey.algorithm,
-              key: existingKey.key,
-              fingerprint:
-                existingKey.fingerprint,
-              createdAt:
-                existingKey.createdAt,
-              updatedAt:
-                existingKey.updatedAt,
-            };
-          }
-
-          const updatedKey =
-            await tx.publicKey.update({
-              where: {
-                id: existingKey.id,
-              },
-
-              data: {
-                algorithm:
-                  data.algorithm,
-
-                key: data.key,
-
-                fingerprint,
-              },
-            });
-
-          await this.auditService.log({
-            userId: user.id,
-
-            action:
-              AUDIT_ACTION.PUBLIC_KEY_UPDATED,
-          });
-
-          await this.securityService.log({
-            userId: user.id,
-
-            event:
-              SECURITY_EVENT.KEY_CHANGED,
-
-            severity:
-              SECURITY_SEVERITY.LOW,
-          });
-
-          return updatedKey;
+      /**
+       * Update existing key.
+       */
+      if (existingKey) {
+        if (
+          existingKey.key === data.key &&
+          existingKey.algorithm === data.algorithm
+        ) {
+          return {
+            id: existingKey.id,
+            algorithm: existingKey.algorithm,
+            key: existingKey.key,
+            fingerprint: existingKey.fingerprint,
+            createdAt: existingKey.createdAt,
+            updatedAt: existingKey.updatedAt,
+          };
         }
 
-        /**
-         * Create new key.
-         */
-        const createdKey =
-          await tx.publicKey.create({
-            data: {
-              userId: user.id,
+        const updatedKey = await tx.publicKey.update({
+          where: {
+            id: existingKey.id,
+          },
 
-              algorithm:
-                data.algorithm,
+          data: {
+            algorithm: data.algorithm,
 
-              key: data.key,
+            key: data.key,
 
-              fingerprint,
-            },
-          });
+            fingerprint,
+          },
+        });
 
         await this.auditService.log({
           userId: user.id,
 
-          action:
-            AUDIT_ACTION.PUBLIC_KEY_CREATED,
+          action: AUDIT_ACTION.PUBLIC_KEY_UPDATED,
         });
 
-        return createdKey;
+        await this.securityService.log({
+          userId: user.id,
+
+          event: SECURITY_EVENT.KEY_CHANGED,
+
+          severity: SECURITY_SEVERITY.LOW,
+        });
+
+        return updatedKey;
       }
-    );
+
+      /**
+       * Create new key.
+       */
+      const createdKey = await tx.publicKey.create({
+        data: {
+          userId: user.id,
+
+          algorithm: data.algorithm,
+
+          key: data.key,
+
+          fingerprint,
+        },
+      });
+
+      await this.auditService.log({
+        userId: user.id,
+
+        action: AUDIT_ACTION.PUBLIC_KEY_CREATED,
+      });
+
+      return createdKey;
+    });
   }
 
   /**
    * Get one user's public key.
    */
-async get(publicId) {
-  const user = await this.prisma.user.findUnique({
-    where: {
-      publicId,
-    },
-    select: {
-      id: true,
-    },
-  });
+  async get(publicId) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        publicId,
+      },
+      select: {
+        id: true,
+      },
+    });
 
-  if (!user) {
-    throw new NotFoundError('User not found.');
+    if (!user) {
+      throw new NotFoundError("User not found.");
+    }
+
+    const key = await this.prisma.publicKey.findFirst({
+      where: {
+        userId: user.id,
+      },
+      select: {
+        id: true,
+        algorithm: true,
+        key: true,
+        fingerprint: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!key) {
+      throw new NotFoundError("Public key not found.");
+    }
+
+    return key;
   }
-
-  const key = await this.prisma.publicKey.findFirst({
-    where: {
-      userId: user.id,
-    },
-    select: {
-      id: true,
-      algorithm: true,
-      key: true,
-      fingerprint: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
-
-  if (!key) {
-    throw new NotFoundError('Public key not found.');
-  }
-
-  return key;
-}
 
   /**
    * List public keys.
@@ -179,82 +164,82 @@ async get(publicId) {
    * method supports future multi-device keys.
    */
   async list(userPublicId) {
-  const user = await this.prisma.user.findUnique({
-    where: {
-      publicId: userPublicId,
-    },
-    select: {
-      id: true,
-    },
-  });
+    const user = await this.prisma.user.findUnique({
+      where: {
+        publicId: userPublicId,
+      },
+      select: {
+        id: true,
+      },
+    });
 
-  if (!user) {
-    throw new NotFoundError('User not found.');
+    if (!user) {
+      throw new NotFoundError("User not found.");
+    }
+
+    return this.prisma.publicKey.findMany({
+      where: {
+        userId: user.id,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      select: {
+        id: true,
+        algorithm: true,
+        fingerprint: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
   }
-
-  return this.prisma.publicKey.findMany({
-    where: {
-      userId: user.id,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-    select: {
-      id: true,
-      algorithm: true,
-      fingerprint: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
-}
 
   /**
    * Delete public key.
    */
-async delete(userPublicId) {
-  const user = await this.prisma.user.findUnique({
-    where: {
-      publicId: userPublicId,
-    },
-    select: {
-      id: true,
-    },
-  });
+  async delete(userPublicId) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        publicId: userPublicId,
+      },
+      select: {
+        id: true,
+      },
+    });
 
-  if (!user) {
-    throw new NotFoundError('User not found.');
-  }
+    if (!user) {
+      throw new NotFoundError("User not found.");
+    }
 
-  const key = await this.prisma.publicKey.findFirst({
-    where: {
+    const key = await this.prisma.publicKey.findFirst({
+      where: {
+        userId: user.id,
+      },
+    });
+
+    if (!key) {
+      throw new NotFoundError("Public key not found.");
+    }
+
+    await this.prisma.publicKey.delete({
+      where: {
+        id: key.id,
+      },
+    });
+
+    await this.auditService.log({
       userId: user.id,
-    },
-  });
+      action: AUDIT_ACTION.PUBLIC_KEY_DELETED,
+    });
 
-  if (!key) {
-    throw new NotFoundError('Public key not found.');
+    await this.securityService.log({
+      userId: user.id,
+      event: SECURITY_EVENT.KEY_CHANGED,
+      severity: SECURITY_SEVERITY.MEDIUM,
+    });
+
+    return {
+      message: "Public key deleted successfully.",
+    };
   }
-
-  await this.prisma.publicKey.delete({
-    where: {
-      id: key.id,
-    },
-  });
-
-  await this.auditService.log({
-    userId: user.id,
-    action: AUDIT_ACTION.PUBLIC_KEY_DELETED,
-  });
-
-  await this.securityService.log({
-    userId: user.id,
-    event: SECURITY_EVENT.KEY_CHANGED,
-    severity: SECURITY_SEVERITY.MEDIUM,
-  });
-
-  return {
-    message: 'Public key deleted successfully.',
-  };
-}
 }

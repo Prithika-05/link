@@ -11,6 +11,7 @@
 import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { NotFoundError, ValidationError } from "../error.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,7 +33,9 @@ const requiredEnvVars = [
 
 for (const variable of requiredEnvVars) {
   if (!process.env[variable]) {
-    throw new Error(`Missing required environment variable: ${variable}`);
+    throw new NotFoundError(
+      `Missing required environment variable: ${variable}`,
+    );
   }
 }
 
@@ -43,7 +46,7 @@ for (const variable of requiredEnvVars) {
 const allowedNodeEnvs = ["development", "test", "production"];
 
 if (!allowedNodeEnvs.includes(process.env.NODE_ENV)) {
-  throw new Error(`Invalid NODE_ENV: ${process.env.NODE_ENV}`);
+  throw new ValidationError(`Invalid NODE_ENV: ${process.env.NODE_ENV}`);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -53,7 +56,7 @@ if (!allowedNodeEnvs.includes(process.env.NODE_ENV)) {
 const port = Number.parseInt(process.env.PORT, 10);
 
 if (Number.isNaN(port) || port <= 0 || port > 65535) {
-  throw new Error("Invalid PORT.");
+  throw new ValidationError("Invalid PORT.");
 }
 
 /* -------------------------------------------------------------------------- */
@@ -63,7 +66,7 @@ if (Number.isNaN(port) || port <= 0 || port > 65535) {
 const bcryptRounds = Number.parseInt(process.env.BCRYPT_ROUNDS, 10);
 
 if (Number.isNaN(bcryptRounds) || bcryptRounds < 10 || bcryptRounds > 15) {
-  throw new Error("BCRYPT_ROUNDS must be between 10 and 15.");
+  throw new ValidationError("BCRYPT_ROUNDS must be between 10 and 15.");
 }
 
 /* -------------------------------------------------------------------------- */
@@ -71,7 +74,7 @@ if (Number.isNaN(bcryptRounds) || bcryptRounds < 10 || bcryptRounds > 15) {
 /* -------------------------------------------------------------------------- */
 
 if (process.env.JWT_SECRET.length < 32) {
-  throw new Error("JWT_SECRET must contain at least 32 characters.");
+  throw new ValidationError("JWT_SECRET must contain at least 32 characters.");
 }
 
 /* -------------------------------------------------------------------------- */
