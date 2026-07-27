@@ -144,6 +144,18 @@ export const refreshTokens = pgTable(
   ],
 );
 
+export const keyBackups = pgTable("keyBackups", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  encryptedPrivateKey: text("encrypted_private_key").notNull(),
+  salt: text("salt").notNull(),
+  iv: text("iv").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const deviceSessions = pgTable(
   "DeviceSession",
   {
