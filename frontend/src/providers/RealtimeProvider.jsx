@@ -40,24 +40,29 @@ export default function RealtimeProvider({ children }) {
       dispatch(setContactPresence({ publicId: targetId, online: false }));
     };
 
+    // src/providers/RealtimeProvider.jsx
+
     const onMessage = async (message) => {
-      const senderPublicId = message.senderPublicId;
+      try {
+        const senderPublicId = message.senderPublicId;
 
-      if (senderPublicId) {
-        await dispatch(ensureIncomingContact(senderPublicId));
-      }
+        if (senderPublicId) {
+          await dispatch(ensureIncomingContact(senderPublicId)).unwrap();
+        }
 
-      const result = await dispatch(decryptRealtimeMessage(message));
+        const result = await dispatch(decryptRealtimeMessage(message)).unwrap();
 
-      if (
-        desktopNotifications &&
-        document.hidden &&
-        window.Notification?.permission === "granted"
-      ) {
-        const text = decryptRealtimeMessage.fulfilled.match(result)
-          ? result.payload.message.text
-          : "New encrypted message";
-        new window.Notification("LinkChat", { body: text });
+        if (
+          desktopNotifications &&
+          document.hidden &&
+          window.Notification?.permission === "granted"
+        ) {
+          new window.Notification("LinkChat", {
+            body: result.message?.text || "New encrypted message",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to process real-time incoming message:", err);
       }
     };
 

@@ -60,21 +60,16 @@ export function registerMessageGateway(io, fastify) {
 
         /* Direct emit to Receiver via connectionManager */
         if (connectionManager.isConnected(receiver.id)) {
-          connectionManager.emit(receiver.id, EVENTS.MESSAGE_RECEIVE, message);
+          connectionManager.emit(receiver.id, EVENTS.MESSAGE_RECEIVE, {
+            ...message,
+            senderPublicId: message.senderPublicId || senderPublicId,
+            receiverPublicId: receiver.publicId,
+          });
           fastify.log.info(
             { receiverId: receiver.id, publicId: receiver.publicId },
-            "Realtime message dispatched to recipient socket.",
+            "Realtime message emitted to recipient.",
           );
         }
-
-        fastify.log.info(
-          {
-            messageId: message.id,
-            senderPublicId,
-            receiverPublicId: receiver.publicId,
-          },
-          "Encrypted message sent.",
-        );
       } catch (error) {
         fastify.log.error(
           {
