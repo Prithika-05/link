@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { userService } from "../../services/userService";
 import { keyService } from "../../services/keyService";
+import Icon from "../common/Icon";
+import { Avatar, Alert, Modal } from "../common/UI";
+import { getInitials, colorFromId } from "../../utils/contact";
 
 export function UserSearchModal({ isOpen, onClose, onSelectUser }) {
   const [query, setQuery] = useState("");
@@ -25,7 +28,7 @@ export function UserSearchModal({ isOpen, onClose, onSelectUser }) {
       } finally {
         setLoading(false);
       }
-    }, 300); // 300ms debounce
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [query]);
@@ -34,7 +37,6 @@ export function UserSearchModal({ isOpen, onClose, onSelectUser }) {
     try {
       setLoading(true);
 
-      // Fetch target user's active public key on the fly
       let recipientPublicKey = null;
       try {
         const keyData = await keyService.getPublicKey(user.publicId);
@@ -59,51 +61,74 @@ export function UserSearchModal({ isOpen, onClose, onSelectUser }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
-        <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
-          Start a New Chat
-        </h3>
+    <Modal title="Start a New Chat" onClose={onClose}>
+      <div className="user-search-modal-content">
+        <label className="chat-search mb-4">
+          <Icon name="search" size={18} />
+          <input
+            type="text"
+            placeholder="Search by @username or email..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+          />
+        </label>
 
-        <input
-          type="text"
-          className="w-full rounded-md border border-gray-300 p-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-          placeholder="Search by username or email..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          autoFocus
-        />
+        {error && <Alert>{error}</Alert>}
 
-        {loading && <p className="mt-2 text-sm text-gray-500">Searching...</p>}
-        {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
+        <div className="conversation-list max-h-64 overflow-y-auto">
+          {loading && (
+            <div className="message-loading text-center py-4">
+              Searching users…
+            </div>
+          )}
 
-        <ul className="mt-4 max-h-60 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700">
-          {results.map((user) => (
-            <li
-              key={user.publicId}
-              onClick={() => handleUserClick(user)}
-              className="cursor-pointer p-3 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <div className="font-medium text-gray-900 dark:text-white">
-                {user.displayName}{" "}
-                <span className="text-sm font-normal text-gray-500">
-                  (@{user.username})
-                </span>
-              </div>
-              <div className="text-xs text-gray-500">{user.email}</div>
-            </li>
-          ))}
-        </ul>
+          {!loading && results.length > 0 && (
+            <div className="contacts-results">
+              {results.map((user) => {
+                const displayName = user.displayName || user.username;
+                const initials = getInitials(displayName);
+                const color = colorFromId(user.publicId);
 
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={onClose}
-            className="rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
-          >
-            Cancel
-          </button>
+                return (
+                  <button
+                    key={user.publicId}
+                    className="conversation-item w-full flex items-center gap-3 p-3 text-left hover:bg-surface-hover rounded-lg transition-colors"
+                    onClick={() => handleUserClick(user)}
+                  >
+                    <Avatar
+                      initials={initials}
+                      color={color}
+                      online={user.status === "ONLINE"}
+                    />
+                    <span className="conversation-copy flex-1 min-w-0">
+                      <span className="flex items-center justify-between">
+                        <strong className="truncate">{displayName}</strong>
+                        <small className="text-muted">@{user.username}</small>
+                      </span>
+                      <small className="truncate text-muted block">
+                        {user.email}
+                      </small>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {!loading && query.trim() && results.length === 0 && (
+            <div className="conversation-empty py-6 text-center text-muted">
+              No registered user found matching "{query}"
+            </div>
+          )}
+
+          {!loading && !query.trim() && (
+            <div className="conversation-empty py-6 text-center text-muted">
+              Type a username or email to find people on LinkChat.
+            </div>
+          )}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
