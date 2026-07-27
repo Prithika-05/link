@@ -1,9 +1,6 @@
-// src/realtime/redis.adapter.js
-
-import { createAdapter } from '@socket.io/redis-adapter';
-import { createClient } from 'redis';
-
-import { env } from '../config/env.js';
+import { createAdapter } from "@socket.io/redis-adapter";
+import { createClient } from "redis";
+import { env } from "../config/env.js";
 
 let pubClient = null;
 let subClient = null;
@@ -13,34 +10,22 @@ export async function setupRedisAdapter(io, logger) {
     return;
   }
 
-  pubClient = createClient({
-    url: env.redisUrl,
-  });
-
+  pubClient = createClient({ url: env.redisUrl });
   subClient = pubClient.duplicate();
 
-  pubClient.on('error', (error) => {
-    logger.error(
-      { error },
-      'Socket.IO Redis publisher error.'
-    );
+  pubClient.on("error", (error) => {
+    logger.error({ error }, "Socket.IO Redis publisher error.");
   });
 
-  subClient.on('error', (error) => {
-    logger.error(
-      { error },
-      'Socket.IO Redis subscriber error.'
-    );
+  subClient.on("error", (error) => {
+    logger.error({ error }, "Socket.IO Redis subscriber error.");
   });
 
-  await Promise.all([
-    pubClient.connect(),
-    subClient.connect(),
-  ]);
+  await Promise.all([pubClient.connect(), subClient.connect()]);
 
   io.adapter(createAdapter(pubClient, subClient));
 
-  logger.info('Socket.IO Redis adapter initialized.');
+  logger.info("Socket.IO Redis adapter initialized.");
 }
 
 export async function closeRedisAdapter() {

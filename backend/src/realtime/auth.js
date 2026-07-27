@@ -1,146 +1,82 @@
-// src/realtime/auth.js
-
-import { TokenService } from '../modules/auth/auth.tokens.js';
-import { SecurityService } from '../modules/security/security.service.js';
+import { TokenService } from "../modules/auth/auth.tokens.js";
+import { SecurityService } from "../modules/security/security.service.js";
 
 import {
   SECURITY_EVENT,
   SECURITY_SEVERITY,
   TOKEN_TYPE,
-} from '../utils/constants.js';
+} from "../utils/constants.js";
 
-import { allowConnection } from './socket.rate-limit.js';
+import { allowConnection } from "./socket.rate-limit.js";
 
 export function registerSocketAuth(io, fastify) {
   const tokenService = new TokenService(fastify);
-  const securityService =
-    new SecurityService(fastify);
+  const securityService = new SecurityService(fastify);
 
   io.use(async (socket, next) => {
-    const ipAddress =
-      socket.handshake.address;
-
-    const userAgent =
-      socket.handshake.headers[
-        'user-agent'
-      ] ?? null;
+    const ipAddress = socket.handshake.address;
+    const userAgent = socket.handshake.headers["user-agent"] ?? null;
 
     try {
-      /**
-       * Rate limiting.
-       */
+      /* Rate Limiting Check */
       if (!allowConnection(ipAddress)) {
         await securityService.log({
-          event:
-            SECURITY_EVENT.RATE_LIMIT_EXCEEDED,
-
-          severity:
-            SECURITY_SEVERITY.MEDIUM,
-
+          event: SECURITY_EVENT.RATE_LIMIT_EXCEEDED,
+          severity: SECURITY_SEVERITY.MEDIUM,
           ipAddress,
-
-          metadata: {
-            userAgent,
-          },
+          metadata: { userAgent },
         });
 
-        return next(
-          new Error(
-            'Too many connection attempts.'
-          )
-        );
+        return next(new Error("Too many connection attempts."));
       }
 
-      /**
-       * Access token.
-       */
-      const token =
-        socket.handshake.auth?.token;
+      /* Extract Token */
+      const token = socket.handshake.auth?.token;
 
       if (!token) {
-        return next(
-          new Error(
-            'Authentication required.'
-          )
-        );
+        return next(new Error("Authentication required."));
       }
 
-      /**
-       * Verify JWT.
-       */
-      const payload =
-        await tokenService.verifyToken(
-          token
-        );
+      /* Verify JWT */
+      const payload = await tokenService.verifyToken(token);
 
-      if (
-        !payload?.jti ||
-        payload.type !==
-          TOKEN_TYPE.ACCESS
-      ) {
-        return next(
-          new Error(
-            'Invalid access token.'
-          )
-        );
+      if (!payload?.jti || payload.type !== TOKEN_TYPE.ACCESS) {
+        return next(new Error("Invalid access token."));
       }
 
-      /**
-       * Check blacklist.
-       */
-      const revoked =
-        await tokenService.isBlacklisted(
-          payload.jti
-        );
+      /* Check Blacklist in Redis */
+      const revoked = await tokenService.isBlacklisted(payload.jti);
 
       if (revoked) {
         await securityService.log({
           userId: payload.sub,
-
-          event:
-            SECURITY_EVENT.INVALID_JWT,
-
-          severity:
-            SECURITY_SEVERITY.MEDIUM,
-
+          event: SECURITY_EVENT.INVALID_JWT,
+          severity: SECURITY_SEVERITY.MEDIUM,
           ipAddress,
-
-          metadata: {
-            userAgent,
-          },
+          metadata: { userAgent },
         });
 
-        return next(
-          new Error(
-            'Token has been revoked.'
-          )
-        );
+        return next(new Error("Token has been revoked."));
       }
 
-      /**
-       * Attach authenticated user.
-       */
+      /* Attach user payload to socket */
       socket.data.user = payload;
 
       fastify.log.debug(
         {
           socketId: socket.id,
           userId: payload.sub,
+          publicId: payload.publicId,
         },
-        'Socket authenticated.'
+        "Socket authenticated.",
       );
 
       return next();
     } catch (error) {
       await securityService.log({
-        event:
-          SECURITY_EVENT.SOCKET_AUTH_FAILED,
-
-        severity:
-          SECURITY_SEVERITY.MEDIUM,
-
+        event: SECURITY_EVENT.SOCKET_AUTH_FAILED,
+        severity: SECURITY_SEVERITY.MEDIUM,
         ipAddress,
-
         metadata: {
           userAgent,
           reason: error.message,
@@ -153,12 +89,10 @@ export function registerSocketAuth(io, fastify) {
           ipAddress,
           error: error.message,
         },
-        'Socket authentication failed.'
+        "Socket authentication failed.",
       );
 
-      return next(
-        new Error('Unauthorized.')
-      );
+      return next(new Error("Unauthorized."));
     }
   });
 }
