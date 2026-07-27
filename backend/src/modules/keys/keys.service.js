@@ -1,7 +1,4 @@
-// src/modules/keys/keys.service.js
-
 import { generateFingerprint } from "../../utils/crypto.js";
-
 import { NotFoundError } from "../../error.js";
 
 import { AuditService } from "../audit/audit.service.js";
@@ -13,12 +10,14 @@ import {
   SECURITY_SEVERITY,
 } from "../../utils/constants.js";
 
+import { eq, desc } from "drizzle-orm";
+import { users, publicKeys } from "../../db/schema.js";
+
 export class KeysService {
   constructor(fastify) {
-    this.prisma = fastify.prisma;
+    this.db = fastify.db;
 
     this.auditService = new AuditService(fastify);
-
     this.securityService = new SecurityService(fastify);
   }
 
@@ -26,11 +25,9 @@ export class KeysService {
    * Upload or replace a user's public key.
    */
   async upload(userPublicId, data) {
-    return this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({
-        where: {
-          publicId: userPublicId,
-        },
+    return this.db.transaction(async (tx) => {
+      const user = await tx.query.users.findFirst({
+        where: eq(users.publicId, userPublicId),
       });
 
       if (!user) {
@@ -39,55 +36,39 @@ export class KeysService {
 
       const fingerprint = generateFingerprint(data.key);
 
-      const existingKey = await tx.publicKey.findFirst({
-        where: {
-          userId: user.id,
-        },
+      const existingKey = await tx.query.publicKeys.findFirst({
+        where: eq(publicKeys.userId, user.id),
       });
 
       /**
-       * Update existing key.
+       * Update existing key if modified.
        */
       if (existingKey) {
         if (
           existingKey.key === data.key &&
           existingKey.algorithm === data.algorithm
         ) {
-          return {
-            id: existingKey.id,
-            algorithm: existingKey.algorithm,
-            key: existingKey.key,
-            fingerprint: existingKey.fingerprint,
-            createdAt: existingKey.createdAt,
-            updatedAt: existingKey.updatedAt,
-          };
+          return existingKey;
         }
 
-        const updatedKey = await tx.publicKey.update({
-          where: {
-            id: existingKey.id,
-          },
-
-          data: {
+        const [updatedKey] = await tx
+          .update(publicKeys)
+          .set({
             algorithm: data.algorithm,
-
             key: data.key,
-
             fingerprint,
-          },
-        });
+          })
+          .where(eq(publicKeys.id, existingKey.id))
+          .returning();
 
         await this.auditService.log({
           userId: user.id,
-
           action: AUDIT_ACTION.PUBLIC_KEY_UPDATED,
         });
 
         await this.securityService.log({
           userId: user.id,
-
           event: SECURITY_EVENT.KEY_CHANGED,
-
           severity: SECURITY_SEVERITY.LOW,
         });
 
@@ -95,23 +76,20 @@ export class KeysService {
       }
 
       /**
-       * Create new key.
+       * Create new public key.
        */
-      const createdKey = await tx.publicKey.create({
-        data: {
+      const [createdKey] = await tx
+        .insert(publicKeys)
+        .values({
           userId: user.id,
-
           algorithm: data.algorithm,
-
           key: data.key,
-
           fingerprint,
-        },
-      });
+        })
+        .returning();
 
       await this.auditService.log({
         userId: user.id,
-
         action: AUDIT_ACTION.PUBLIC_KEY_CREATED,
       });
 
@@ -123,11 +101,9 @@ export class KeysService {
    * Get one user's public key.
    */
   async get(publicId) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        publicId,
-      },
-      select: {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.publicId, publicId),
+      columns: {
         id: true,
       },
     });
@@ -136,11 +112,9 @@ export class KeysService {
       throw new NotFoundError("User not found.");
     }
 
-    const key = await this.prisma.publicKey.findFirst({
-      where: {
-        userId: user.id,
-      },
-      select: {
+    const key = await this.db.query.publicKeys.findFirst({
+      where: eq(publicKeys.userId, user.id),
+      columns: {
         id: true,
         algorithm: true,
         key: true,
@@ -158,17 +132,12 @@ export class KeysService {
   }
 
   /**
-   * List public keys.
-   *
-   * Currently one key per user, but this
-   * method supports future multi-device keys.
+   * List public keys for authenticated user.
    */
   async list(userPublicId) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        publicId: userPublicId,
-      },
-      select: {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.publicId, userPublicId),
+      columns: {
         id: true,
       },
     });
@@ -177,14 +146,10 @@ export class KeysService {
       throw new NotFoundError("User not found.");
     }
 
-    return this.prisma.publicKey.findMany({
-      where: {
-        userId: user.id,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      select: {
+    return this.db.query.publicKeys.findMany({
+      where: eq(publicKeys.userId, user.id),
+      orderBy: [desc(publicKeys.createdAt)],
+      columns: {
         id: true,
         algorithm: true,
         fingerprint: true,
@@ -195,14 +160,12 @@ export class KeysService {
   }
 
   /**
-   * Delete public key.
+   * Delete user public key.
    */
   async delete(userPublicId) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        publicId: userPublicId,
-      },
-      select: {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.publicId, userPublicId),
+      columns: {
         id: true,
       },
     });
@@ -211,21 +174,15 @@ export class KeysService {
       throw new NotFoundError("User not found.");
     }
 
-    const key = await this.prisma.publicKey.findFirst({
-      where: {
-        userId: user.id,
-      },
+    const key = await this.db.query.publicKeys.findFirst({
+      where: eq(publicKeys.userId, user.id),
     });
 
     if (!key) {
       throw new NotFoundError("Public key not found.");
     }
 
-    await this.prisma.publicKey.delete({
-      where: {
-        id: key.id,
-      },
-    });
+    await this.db.delete(publicKeys).where(eq(publicKeys.id, key.id));
 
     await this.auditService.log({
       userId: user.id,

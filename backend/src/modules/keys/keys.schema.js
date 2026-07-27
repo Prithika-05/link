@@ -1,80 +1,65 @@
-// src/modules/keys/keys.schema.js
-
 const publicKeySchema = {
-  type: 'object',
+  type: "object",
 
-  required: [
-    'id',
-    'algorithm',
-    'key',
-    'fingerprint',
-    'createdAt',
-    'updatedAt',
-  ],
+  required: ["id", "algorithm", "key", "fingerprint", "createdAt", "updatedAt"],
 
   properties: {
     id: {
-      type: 'string',
+      type: "string",
     },
 
     algorithm: {
-      type: 'string',
-      enum: ['ECDH-P256'],
+      type: "string",
+      enum: ["ECDH-P256"],
     },
 
     key: {
-      type: 'string',
+      type: "string",
     },
 
     fingerprint: {
-      type: 'string',
+      type: "string",
     },
 
     createdAt: {
-      type: 'string',
-      format: 'date-time',
+      type: "string",
+      format: "date-time",
     },
 
     updatedAt: {
-      type: 'string',
-      format: 'date-time',
+      type: "string",
+      format: "date-time",
     },
   },
 };
 
 const publicKeySummarySchema = {
-  type: 'object',
+  type: "object",
 
-  required: [
-    'id',
-    'algorithm',
-    'fingerprint',
-    'createdAt',
-    'updatedAt',
-  ],
+  required: ["id", "algorithm", "fingerprint", "createdAt", "updatedAt"],
 
   properties: {
     id: {
-      type: 'string',
+      type: "string",
     },
 
     algorithm: {
-      type: 'string',
-      enum: ['ECDH-P256'],
+      type: "string",
+      enum: ["ECDH-P256"],
     },
 
     fingerprint: {
-      type: 'string',
+      type: "string",
     },
 
     createdAt: {
-      type: 'string',
-      format: 'date-time',
+      type: "string",
+      format: "date-time",
     },
 
     updatedAt: {
-      type: 'string',
-      format: 'date-time',
+      type: "string",
+      format: "date-time",
     },
   },
 };
@@ -84,32 +69,26 @@ const publicKeySummarySchema = {
 /* -------------------------------------------------------------------------- */
 
 export const uploadKeySchema = {
-  summary: 'Upload or update a public key',
+  summary: "Upload or update a public key",
 
-  tags: ['Keys'],
+  tags: ["Keys"],
 
   body: {
-    type: 'object',
+    type: "object",
 
     additionalProperties: false,
 
-    required: [
-      'algorithm',
-      'key',
-    ],
+    required: ["algorithm", "key"],
 
     properties: {
       algorithm: {
-        type: 'string',
-
-        enum: ['ECDH-P256'],
+        type: "string",
+        enum: ["ECDH-P256"],
       },
 
       key: {
-        type: 'string',
-
+        type: "string",
         minLength: 64,
-
         maxLength: 4096,
       },
     },
@@ -117,21 +96,17 @@ export const uploadKeySchema = {
 
   response: {
     200: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         success: {
-          type: 'boolean',
+          type: "boolean",
         },
 
         message: {
-          type: 'string',
+          type: "string",
         },
 
         data: publicKeySchema,
@@ -139,21 +114,17 @@ export const uploadKeySchema = {
     },
 
     201: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         success: {
-          type: 'boolean',
+          type: "boolean",
         },
 
         message: {
-          type: 'string',
+          type: "string",
         },
 
         data: publicKeySchema,
@@ -167,39 +138,35 @@ export const uploadKeySchema = {
 /* -------------------------------------------------------------------------- */
 
 export const getKeySchema = {
-  summary: 'Retrieve a user public key',
+  summary: "Retrieve a user public key",
 
-  tags: ['Keys'],
+  tags: ["Keys"],
 
   params: {
-    type: 'object',
+    type: "object",
 
-    required: ['publicId'],
+    required: ["publicId"],
 
     properties: {
-      userId: {
-        type: 'string',
+      publicId: {
+        type: "string",
       },
     },
   },
 
   response: {
     200: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         success: {
-          type: 'boolean',
+          type: "boolean",
         },
 
         message: {
-          type: 'string',
+          type: "string",
         },
 
         data: publicKeySchema,
@@ -215,30 +182,25 @@ export const getKeySchema = {
 export const listKeysSchema = {
   summary: "List authenticated user's public keys",
 
-  tags: ['Keys'],
+  tags: ["Keys"],
 
   response: {
     200: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         success: {
-          type: 'boolean',
+          type: "boolean",
         },
 
         message: {
-          type: 'string',
+          type: "string",
         },
 
         data: {
-          type: 'array',
-
+          type: "array",
           items: publicKeySummarySchema,
         },
       },
@@ -251,31 +213,27 @@ export const listKeysSchema = {
 /* -------------------------------------------------------------------------- */
 
 export const deleteKeySchema = {
-  summary: 'Delete authenticated user public key',
+  summary: "Delete authenticated user public key",
 
-  tags: ['Keys'],
+  tags: ["Keys"],
 
   response: {
     200: {
-      type: 'object',
+      type: "object",
 
-      required: [
-        'success',
-        'message',
-        'data',
-      ],
+      required: ["success", "message", "data"],
 
       properties: {
         success: {
-          type: 'boolean',
+          type: "boolean",
         },
 
         message: {
-          type: 'string',
+          type: "string",
         },
 
         data: {
-          type: 'null',
+          type: "null",
         },
       },
     },
