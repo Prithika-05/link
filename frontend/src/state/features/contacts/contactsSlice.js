@@ -24,14 +24,81 @@ export const loadContacts = createAsyncThunk(
 );
 
 /**
- * Fetch incoming & outgoing contact requests from the backend
+ * Fetch incoming & outgoing contact requests from the backend.
+ * Automatically promotes accepted outgoing requests to verified contacts.
  */
 export const fetchPendingRequests = createAsyncThunk(
   "contacts/fetchPendingRequests",
-  async (_, { rejectWithValue }) => {
+  async (_, { getState, rejectWithValue }) => {
     try {
       const { data } = await apiClient.get("/contacts/requests/pending");
-      return data.data; // { incoming: [...], outgoing: [...] }
+      const incoming = data.data.incoming || [];
+      const outgoing = data.data.outgoing || [];
+
+      const currentUserId = getState().auth.user?.publicId;
+      const existingContacts = getState().contacts.items || [];
+      let updatedContacts = [...existingContacts];
+      let contactsChanged = false;
+
+      // Filter out ACCEPTED outgoing requests and convert them to verified contacts
+      const acceptedOutgoing = outgoing.filter(
+        (req) => req.status === "ACCEPTED",
+      );
+
+      for (const req of acceptedOutgoing) {
+        const receiver = req.receiver;
+        if (!receiver?.publicId) continue;
+
+        // Check if already in verified contacts
+        const alreadyExists = updatedContacts.some(
+          (item) => item.publicId === receiver.publicId,
+        );
+
+        if (!alreadyExists) {
+          // Fetch public key for the newly accepted user
+          const publicKeyObj = await keyService
+            .getPublicKey(receiver.publicId)
+            .catch(() => null);
+
+          const displayName =
+            receiver.displayName ||
+            receiver.username ||
+            fallbackContactName(receiver.publicId);
+
+          const newContact = {
+            publicId: receiver.publicId,
+            username: receiver.username,
+            email: receiver.email || "",
+            name: displayName,
+            initials: getInitials(displayName),
+            color: colorFromId(receiver.publicId),
+            fingerprint: publicKeyObj?.fingerprint || publicKeyObj?.key || "",
+            algorithm: publicKeyObj?.algorithm || "ECDH-P256",
+            publicKey: publicKeyObj?.key || null,
+            online: false,
+            addedAt: new Date().toISOString(),
+          };
+
+          updatedContacts.unshift(newContact);
+          contactsChanged = true;
+        }
+      }
+
+      // Save to localStorage if new contacts were added
+      if (contactsChanged && currentUserId) {
+        saveStoredContacts(currentUserId, updatedContacts);
+      }
+
+      // Only return requests that are still PENDING in the outgoing tab
+      const pendingOutgoing = outgoing.filter(
+        (req) => req.status === "PENDING",
+      );
+
+      return {
+        incoming,
+        outgoing: pendingOutgoing,
+        verifiedContacts: updatedContacts,
+      };
     } catch (error) {
       return rejectWithValue(
         getApiErrorMessage(error, "Failed to load contact requests."),
@@ -307,6 +374,9 @@ const contactsSlice = createSlice({
       .addCase(fetchPendingRequests.fulfilled, (state, action) => {
         state.pendingRequests = action.payload.incoming || [];
         state.sentRequests = action.payload.outgoing || [];
+        if (action.payload.verifiedContacts) {
+          state.items = action.payload.verifiedContacts;
+        }
       })
       .addCase(sendContactRequest.fulfilled, (state, action) => {
         const { request, receiver } = action.payload;
