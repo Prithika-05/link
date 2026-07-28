@@ -138,4 +138,39 @@ export class ContactsService {
 
     return { incoming, outgoing };
   }
+
+  async deleteContact(userAPublicId, userBPublicId) {
+    const [userA, userB] = await Promise.all([
+      this.db.query.users.findFirst({
+        where: eq(users.publicId, userAPublicId),
+        columns: { id: true },
+      }),
+      this.db.query.users.findFirst({
+        where: eq(users.publicId, userBPublicId),
+        columns: { id: true },
+      }),
+    ]);
+
+    if (!userA || !userB) {
+      throw new NotFoundError("User not found.");
+    }
+
+    // Delete any existing relationship or pending request between userA and userB
+    await this.db
+      .delete(contactRequests)
+      .where(
+        or(
+          and(
+            eq(contactRequests.senderId, userA.id),
+            eq(contactRequests.receiverId, userB.id),
+          ),
+          and(
+            eq(contactRequests.senderId, userB.id),
+            eq(contactRequests.receiverId, userA.id),
+          ),
+        ),
+      );
+
+    return { message: "Contact removed successfully." };
+  }
 }

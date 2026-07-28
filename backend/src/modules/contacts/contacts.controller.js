@@ -65,4 +65,14 @@ export class ContactsController {
     );
     return successResponse(reply, pending, "Pending requests retrieved.");
   };
+
+  deleteContact = async (request, reply) => {
+    const { targetPublicId } = request.params;
+    const result = await this.contactsService.deleteContact(
+      request.user.publicId,
+      targetPublicId,
+    );
+
+    return successResponse(reply, null, result.message);
+  };
 }

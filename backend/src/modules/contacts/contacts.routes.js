@@ -19,4 +19,10 @@ export default async function contactsRoutes(fastify) {
     { preHandler: [authenticate] },
     controller.getPending,
   );
+
+  fastify.delete(
+    "/:targetPublicId",
+    { preHandler: [authenticate] },
+    controller.deleteContact,
+  );
 }

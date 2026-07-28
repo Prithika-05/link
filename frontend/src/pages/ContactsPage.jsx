@@ -24,6 +24,23 @@ export default function ContactsPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
+  const [contactToDelete, setContactToDelete] = useState(null);
+
+  const confirmDeleteContact = async () => {
+    if (!contactToDelete) return;
+
+    const result = await dispatch(removeContact(contactToDelete.publicId));
+
+    if (removeContact.fulfilled.match(result)) {
+      setActionMessage(`Removed ${contactToDelete.name} from your contacts.`);
+      setTimeout(() => setActionMessage(""), 4000);
+    } else {
+      alert(result.payload || "Failed to remove contact.");
+    }
+
+    setContactToDelete(null);
+  };
+
   const contacts = useSelector((state) => state.contacts.items || []);
   const pendingRequests = useSelector(
     (state) => state.contacts.pendingRequests || [],
@@ -291,7 +308,7 @@ export default function ContactsPage() {
                       </button>
 
                       <button
-                        onClick={() => deleteContact(contact)}
+                        onClick={() => setContactToDelete(contact)}
                         className="p-1.5 text-muted-foreground/60 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors"
                         aria-label={`Remove ${contact.name}`}
                       >
@@ -491,6 +508,56 @@ export default function ContactsPage() {
               Verify this fingerprint out-of-band to ensure secure end-to-end
               encryption.
             </p>
+          </div>
+        </Modal>
+      )}
+
+      {contactToDelete && (
+        <Modal title="Remove Contact?" onClose={() => setContactToDelete(null)}>
+          <div className="space-y-4 p-2">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
+              <Icon name="shield" size={24} />
+              <p className="text-xs font-semibold leading-relaxed">
+                WARNING: This action cannot be restored automatically!
+              </p>
+            </div>
+
+            <p className="text-sm text-foreground">
+              Are you sure you want to remove{" "}
+              <strong>{contactToDelete.name}</strong> from your verified
+              contacts?
+            </p>
+
+            <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-1">
+              <li>
+                You will no longer be able to send encrypted messages to this
+                contact.
+              </li>
+              <li>The contact relationship in the server will be deleted.</li>
+              <li>
+                If you want to chat with <strong>{contactToDelete.name}</strong>{" "}
+                in the future, you will have to send a new contact request[cite:
+                17, 21].
+              </li>
+            </ul>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-border">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setContactToDelete(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+                onClick={confirmDeleteContact}
+              >
+                Yes, Remove Contact
+              </Button>
+            </div>
           </div>
         </Modal>
       )}

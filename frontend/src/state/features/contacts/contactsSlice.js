@@ -304,15 +304,29 @@ export const startConversation = createAsyncThunk(
 /**
  * Remove contact from Redux & LocalStorage
  */
+/**
+ * Remove contact from Database, Redux, & LocalStorage
+ */
 export const removeContact = createAsyncThunk(
   "contacts/removeContact",
-  async (publicId, { getState }) => {
-    const currentUserId = getState().auth.user?.publicId;
-    const existing = getState().contacts.items;
-    const updated = existing.filter((item) => item.publicId !== publicId);
+  async (publicId, { getState, rejectWithValue }) => {
+    try {
+      // 1. Delete relationship on server
+      await apiClient.delete(`/contacts/${encodeURIComponent(publicId)}`);
 
-    saveStoredContacts(currentUserId, updated);
-    return publicId;
+      // 2. Remove locally from browser storage
+      const currentUserId = getState().auth.user?.publicId;
+      const existing = getState().contacts.items || [];
+      const updated = existing.filter((item) => item.publicId !== publicId);
+
+      saveStoredContacts(currentUserId, updated);
+
+      return publicId;
+    } catch (error) {
+      return rejectWithValue(
+        getApiErrorMessage(error, "Failed to remove contact from server."),
+      );
+    }
   },
 );
 
