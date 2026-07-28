@@ -100,23 +100,42 @@ export class ContactsService {
       where: eq(users.publicId, userPublicId),
     });
 
-    const requests = await this.db.query.contactRequests.findMany({
-      where: and(
-        eq(contactRequests.receiverId, user.id),
-        eq(contactRequests.status, "PENDING"),
-      ),
-      with: {
-        sender: {
-          columns: {
-            publicId: true,
-            username: true,
-            displayName: true,
-            email: true,
+    if (!user) throw new NotFoundError("User not found.");
+
+    const [incoming, outgoing] = await Promise.all([
+      // Incoming requests (people asking to add current user)
+      this.db.query.contactRequests.findMany({
+        where: and(
+          eq(contactRequests.receiverId, user.id),
+          eq(contactRequests.status, "PENDING"),
+        ),
+        with: {
+          sender: {
+            columns: {
+              publicId: true,
+              username: true,
+              displayName: true,
+              email: true,
+            },
           },
         },
-      },
-    });
+      }),
+      // Outgoing requests (requests current user sent to others)
+      this.db.query.contactRequests.findMany({
+        where: eq(contactRequests.senderId, user.id),
+        with: {
+          receiver: {
+            columns: {
+              publicId: true,
+              username: true,
+              displayName: true,
+              email: true,
+            },
+          },
+        },
+      }),
+    ]);
 
-    return requests;
+    return { incoming, outgoing };
   }
 }

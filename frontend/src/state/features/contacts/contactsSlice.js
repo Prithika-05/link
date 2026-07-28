@@ -24,17 +24,17 @@ export const loadContacts = createAsyncThunk(
 );
 
 /**
- * Fetch pending incoming contact requests from the backend
+ * Fetch incoming & outgoing contact requests from the backend
  */
 export const fetchPendingRequests = createAsyncThunk(
   "contacts/fetchPendingRequests",
   async (_, { rejectWithValue }) => {
     try {
       const { data } = await apiClient.get("/contacts/requests/pending");
-      return data.data; // Array of pending request objects
+      return data.data; // { incoming: [...], outgoing: [...] }
     } catch (error) {
       return rejectWithValue(
-        getApiErrorMessage(error, "Failed to load pending contact requests."),
+        getApiErrorMessage(error, "Failed to load contact requests."),
       );
     }
   },
@@ -45,12 +45,17 @@ export const fetchPendingRequests = createAsyncThunk(
  */
 export const sendContactRequest = createAsyncThunk(
   "contacts/sendContactRequest",
-  async (targetPublicId, { rejectWithValue }) => {
+  async (targetUser, { rejectWithValue }) => {
     try {
+      const targetPublicId = targetUser.publicId || targetUser;
       const { data } = await apiClient.post("/contacts/requests", {
         receiverPublicId: targetPublicId,
       });
-      return data.data;
+
+      return {
+        request: data.data,
+        receiver: targetUser,
+      };
     } catch (error) {
       return rejectWithValue(
         getApiErrorMessage(error, "Failed to send contact request."),
@@ -66,13 +71,12 @@ export const respondToContactRequest = createAsyncThunk(
   "contacts/respondToContactRequest",
   async ({ requestId, action, sender }, { getState, rejectWithValue }) => {
     try {
-      const { data } = await apiClient.post("/contacts/requests/respond", {
+      await apiClient.post("/contacts/requests/respond", {
         requestId,
         action, // "ACCEPTED" | "REJECTED"
       });
 
       if (action === "ACCEPTED" && sender) {
-        // Fetch sender's public key to construct active contact entry
         const publicKeyObj = await keyService
           .getPublicKey(sender.publicId)
           .catch(() => null);
@@ -118,7 +122,57 @@ export const respondToContactRequest = createAsyncThunk(
 );
 
 /**
- * Legacy startConversation helper (fallback)
+ * Ensure an incoming contact is added locally if already accepted or active
+ */
+export const ensureIncomingContact = createAsyncThunk(
+  "contacts/ensureIncomingContact",
+  async (publicId, { getState }) => {
+    const currentUserId = getState().auth.user?.publicId;
+    const existing = getState().contacts.items.find(
+      (contact) => contact.publicId === publicId,
+    );
+
+    if (existing) return existing;
+
+    let displayName = fallbackContactName(publicId);
+    let publicKeyObj = null;
+
+    try {
+      const [userProfile, fetchedKey] = await Promise.all([
+        userService.getUserByPublicId(publicId).catch(() => null),
+        keyService.getPublicKey(publicId).catch(() => null),
+      ]);
+
+      if (userProfile?.displayName || userProfile?.username) {
+        displayName = userProfile.displayName || `@${userProfile.username}`;
+      }
+
+      publicKeyObj = fetchedKey;
+    } catch {
+      // Fallback
+    }
+
+    const newContact = {
+      publicId,
+      name: displayName,
+      initials: getInitials(displayName),
+      color: colorFromId(publicId),
+      fingerprint: publicKeyObj?.fingerprint ?? null,
+      algorithm: publicKeyObj?.algorithm ?? "ECDH-P256",
+      publicKey: publicKeyObj?.key ?? null,
+      online: true,
+      addedAt: new Date().toISOString(),
+    };
+
+    const updated = [newContact, ...getState().contacts.items];
+    saveStoredContacts(currentUserId, updated);
+
+    return newContact;
+  },
+);
+
+/**
+ * Legacy startConversation thunk
  */
 export const startConversation = createAsyncThunk(
   "contacts/startConversation",
@@ -181,56 +235,6 @@ export const startConversation = createAsyncThunk(
 );
 
 /**
- * Ensure an incoming contact is added locally if already accepted
- */
-export const ensureIncomingContact = createAsyncThunk(
-  "contacts/ensureIncomingContact",
-  async (publicId, { getState }) => {
-    const currentUserId = getState().auth.user?.publicId;
-    const existing = getState().contacts.items.find(
-      (contact) => contact.publicId === publicId,
-    );
-
-    if (existing) return existing;
-
-    let displayName = fallbackContactName(publicId);
-    let publicKeyObj = null;
-
-    try {
-      const [userProfile, fetchedKey] = await Promise.all([
-        userService.getUserByPublicId(publicId).catch(() => null),
-        keyService.getPublicKey(publicId).catch(() => null),
-      ]);
-
-      if (userProfile?.displayName || userProfile?.username) {
-        displayName = userProfile.displayName || `@${userProfile.username}`;
-      }
-
-      publicKeyObj = fetchedKey;
-    } catch {
-      // Fallback
-    }
-
-    const newContact = {
-      publicId,
-      name: displayName,
-      initials: getInitials(displayName),
-      color: colorFromId(publicId),
-      fingerprint: publicKeyObj?.fingerprint ?? null,
-      algorithm: publicKeyObj?.algorithm ?? "ECDH-P256",
-      publicKey: publicKeyObj?.key ?? null,
-      online: true,
-      addedAt: new Date().toISOString(),
-    };
-
-    const updated = [newContact, ...getState().contacts.items];
-    saveStoredContacts(currentUserId, updated);
-
-    return newContact;
-  },
-);
-
-/**
  * Remove contact from Redux & LocalStorage
  */
 export const removeContact = createAsyncThunk(
@@ -247,7 +251,8 @@ export const removeContact = createAsyncThunk(
 
 const initialState = {
   items: [],
-  pendingRequests: [],
+  pendingRequests: [], // Incoming requests
+  sentRequests: [], // Outgoing requests
   status: "idle",
   error: null,
   loaded: false,
@@ -266,9 +271,6 @@ const contactsSlice = createSlice({
       }
     },
 
-    /**
-     * Realtime socket event trigger when a request is received
-     */
     incomingRequestReceived(state, action) {
       const exists = state.pendingRequests.some(
         (r) => r.id === action.payload.requestId,
@@ -285,6 +287,7 @@ const contactsSlice = createSlice({
     resetContacts(state) {
       state.items = [];
       state.pendingRequests = [];
+      state.sentRequests = [];
       state.status = "idle";
       state.error = null;
       state.loaded = false;
@@ -301,21 +304,23 @@ const contactsSlice = createSlice({
         state.items = action.payload;
         state.loaded = true;
       })
-      .addCase(loadContacts.rejected, (state, action) => {
-        state.status = "error";
-        state.error = action.payload || null;
-        state.loaded = true;
-      })
       .addCase(fetchPendingRequests.fulfilled, (state, action) => {
-        state.pendingRequests = action.payload;
+        state.pendingRequests = action.payload.incoming || [];
+        state.sentRequests = action.payload.outgoing || [];
+      })
+      .addCase(sendContactRequest.fulfilled, (state, action) => {
+        const { request, receiver } = action.payload;
+        state.sentRequests.unshift({
+          ...request,
+          receiver:
+            typeof receiver === "object" ? receiver : { publicId: receiver },
+        });
       })
       .addCase(respondToContactRequest.fulfilled, (state, action) => {
         const { requestId, action: reqAction, contact } = action.payload;
-        // Remove from pending array
         state.pendingRequests = state.pendingRequests.filter(
           (r) => r.id !== requestId,
         );
-        // If accepted, add new contact card
         if (reqAction === "ACCEPTED" && contact) {
           const index = state.items.findIndex(
             (item) => item.publicId === contact.publicId,
@@ -327,6 +332,15 @@ const contactsSlice = createSlice({
           }
         }
       })
+      .addCase(ensureIncomingContact.fulfilled, (state, action) => {
+        const exists = state.items.some(
+          (contact) => contact.publicId === action.payload.publicId,
+        );
+
+        if (!exists) {
+          state.items.unshift(action.payload);
+        }
+      })
       .addCase(startConversation.fulfilled, (state, action) => {
         state.status = "ready";
         const index = state.items.findIndex(
@@ -336,15 +350,6 @@ const contactsSlice = createSlice({
         if (index >= 0) {
           state.items[index] = action.payload;
         } else {
-          state.items.unshift(action.payload);
-        }
-      })
-      .addCase(ensureIncomingContact.fulfilled, (state, action) => {
-        const exists = state.items.some(
-          (contact) => contact.publicId === action.payload.publicId,
-        );
-
-        if (!exists) {
           state.items.unshift(action.payload);
         }
       })
