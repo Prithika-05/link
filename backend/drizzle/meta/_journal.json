@@ -29,6 +29,13 @@
       "when": 1785172661262,
       "tag": "0003_foamy_amazoness",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785223193789,
+      "tag": "0004_public_norrin_radd",
+      "breakpoints": true
     }
   ]
 }

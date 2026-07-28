@@ -32,6 +32,11 @@ export const messageTypeEnum = pgEnum("MessageType", [
   "FILE",
   "SYSTEM",
 ]);
+export const contactRequestStatusEnum = pgEnum("ContactRequestStatus", [
+  "PENDING",
+  "ACCEPTED",
+  "REJECTED",
+]);
 
 // ==========================================
 // TABLES
@@ -235,6 +240,31 @@ export const securityEvents = pgTable(
   (table) => [
     index("SecurityEvent_userId_idx").on(table.userId),
     index("SecurityEvent_createdAt_idx").on(table.createdAt),
+  ],
+);
+export const contactRequests = pgTable(
+  "ContactRequest",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    senderId: text("senderId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    receiverId: text("receiverId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: contactRequestStatusEnum("status").default("PENDING").notNull(),
+    createdAt: timestamp("createdAt", { mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt", { mode: "date" })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("ContactRequest_senderId_idx").on(table.senderId),
+    index("ContactRequest_receiverId_idx").on(table.receiverId),
+    index("ContactRequest_unique_pair").on(table.senderId, table.receiverId),
   ],
 );
 
