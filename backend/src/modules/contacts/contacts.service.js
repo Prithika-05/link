@@ -173,4 +173,38 @@ export class ContactsService {
 
     return { message: "Contact removed successfully." };
   }
+
+  /**
+   * Get all publicIds of users who have an ACCEPTED contact relationship with current user
+   */
+  async getAcceptedContactPublicIds(userPublicId) {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.publicId, userPublicId),
+      columns: { id: true },
+    });
+
+    if (!user) throw new NotFoundError("User not found.");
+
+    // Find all accepted requests involving this user
+    const acceptedRequests = await this.db.query.contactRequests.findMany({
+      where: and(
+        eq(contactRequests.status, "ACCEPTED"),
+        or(
+          eq(contactRequests.senderId, user.id),
+          eq(contactRequests.receiverId, user.id),
+        ),
+      ),
+      with: {
+        sender: { columns: { publicId: true } },
+        receiver: { columns: { publicId: true } },
+      },
+    });
+
+    // Extract the other person's publicId for each relationship
+    const acceptedPublicIds = acceptedRequests.map((req) =>
+      req.senderId === user.id ? req.receiver.publicId : req.sender.publicId,
+    );
+
+    return acceptedPublicIds;
+  }
 }

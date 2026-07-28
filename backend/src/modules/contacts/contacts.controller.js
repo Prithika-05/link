@@ -75,4 +75,16 @@ export class ContactsController {
 
     return successResponse(reply, null, result.message);
   };
+
+  getAcceptedContacts = async (request, reply) => {
+    const acceptedPublicIds =
+      await this.contactsService.getAcceptedContactPublicIds(
+        request.user.publicId,
+      );
+    return successResponse(
+      reply,
+      acceptedPublicIds,
+      "Accepted contact IDs retrieved.",
+    );
+  };
 }

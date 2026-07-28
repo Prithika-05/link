@@ -31,16 +31,27 @@ export const fetchPendingRequests = createAsyncThunk(
   "contacts/fetchPendingRequests",
   async (_, { getState, rejectWithValue }) => {
     try {
-      const { data } = await apiClient.get("/contacts/requests/pending");
-      const incoming = data.data.incoming || [];
-      const outgoing = data.data.outgoing || [];
+      // Fetch pending requests AND valid accepted contact IDs simultaneously
+      const [{ data: requestsRes }, { data: acceptedRes }] = await Promise.all([
+        apiClient.get("/contacts/requests/pending"),
+        apiClient.get("/contacts/accepted"),
+      ]);
+
+      const incoming = requestsRes.data.incoming || [];
+      const outgoing = requestsRes.data.outgoing || [];
+      const validAcceptedPublicIds = new Set(acceptedRes.data || []);
 
       const currentUserId = getState().auth.user?.publicId;
       const existingContacts = getState().contacts.items || [];
-      let updatedContacts = [...existingContacts];
-      let contactsChanged = false;
 
-      // Filter out ACCEPTED outgoing requests and convert them to verified contacts
+      // 1. Prune local contacts that were deleted by the other user on the server
+      let updatedContacts = existingContacts.filter((contact) =>
+        validAcceptedPublicIds.has(contact.publicId),
+      );
+
+      let contactsChanged = updatedContacts.length !== existingContacts.length;
+
+      // 2. Promote any newly accepted outgoing requests into verified contacts
       const acceptedOutgoing = outgoing.filter(
         (req) => req.status === "ACCEPTED",
       );
@@ -49,13 +60,11 @@ export const fetchPendingRequests = createAsyncThunk(
         const receiver = req.receiver;
         if (!receiver?.publicId) continue;
 
-        // Check if already in verified contacts
         const alreadyExists = updatedContacts.some(
           (item) => item.publicId === receiver.publicId,
         );
 
-        if (!alreadyExists) {
-          // Fetch public key for the newly accepted user
+        if (!alreadyExists && validAcceptedPublicIds.has(receiver.publicId)) {
           const publicKeyObj = await keyService
             .getPublicKey(receiver.publicId)
             .catch(() => null);
@@ -84,12 +93,11 @@ export const fetchPendingRequests = createAsyncThunk(
         }
       }
 
-      // Save to localStorage if new contacts were added
+      // Persist pruned/updated list to local storage
       if (contactsChanged && currentUserId) {
         saveStoredContacts(currentUserId, updatedContacts);
       }
 
-      // Only return requests that are still PENDING in the outgoing tab
       const pendingOutgoing = outgoing.filter(
         (req) => req.status === "PENDING",
       );
@@ -101,13 +109,11 @@ export const fetchPendingRequests = createAsyncThunk(
       };
     } catch (error) {
       return rejectWithValue(
-        getApiErrorMessage(error, "Failed to load contact requests."),
+        getApiErrorMessage(error, "Failed to sync contact list."),
       );
     }
   },
-);
-
-/**
+); /**
  * Send a new contact request to a user by their public ID
  */
 export const sendContactRequest = createAsyncThunk(
