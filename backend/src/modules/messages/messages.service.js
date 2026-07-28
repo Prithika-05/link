@@ -16,7 +16,7 @@ import {
 
 import { AuditService } from "../audit/audit.service.js";
 import { SecurityService } from "../security/security.service.js";
-
+import { ContactsService } from "../contacts/contacts.service.js";
 import { eq, or, and, desc, count } from "drizzle-orm";
 import { users, publicKeys, messages } from "../../db/schema.js";
 
@@ -30,6 +30,7 @@ export class MessageService {
 
     this.auditService = new AuditService(fastify);
     this.securityService = new SecurityService(fastify);
+    this.contactsService = new ContactsService(fastify);
   }
 
   /**
@@ -132,7 +133,15 @@ export class MessageService {
       if (!publicKey) {
         throw new NotFoundError("Receiver has not uploaded a public key.");
       }
-
+      const isContact = await this.contactsService.isContactAccepted(
+        sender.id,
+        receiver.id,
+      );
+      if (!isContact) {
+        throw new ValidationError(
+          "You must be accepted contacts to send messages to this user.",
+        );
+      }
       const [message] = await tx
         .insert(messages)
         .values({

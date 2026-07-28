@@ -1,39 +1,40 @@
 // src/app.js
 
-import Fastify from 'fastify';
+import Fastify from "fastify";
 
-import { loggerConfig } from './plugins/logger.js';
-import { registerPlugins } from './plugins/index.js';
+import { loggerConfig } from "./plugins/logger.js";
+import { registerPlugins } from "./plugins/index.js";
 
-import authRoutes from './modules/auth/auth.routes.js';
-import userRoutes from './modules/users/users.routes.js';
-import keysRoutes from './modules/keys/keys.routes.js';
-import messageRoutes from './modules/messages/messages.routes.js';
+import authRoutes from "./modules/auth/auth.routes.js";
+import userRoutes from "./modules/users/users.routes.js";
+import keysRoutes from "./modules/keys/keys.routes.js";
+import messageRoutes from "./modules/messages/messages.routes.js";
+import contactsRoutes from "./modules/contacts/contacts.routes.js";
 
 const app = Fastify({
   logger: loggerConfig,
   trustProxy: true,
 });
 
-
 async function registerRoutes() {
   const routes = [
     {
       plugin: authRoutes,
-      prefix: '/api/auth',
+      prefix: "/api/auth",
     },
     {
       plugin: userRoutes,
-      prefix: '/api/users',
+      prefix: "/api/users",
     },
     {
       plugin: keysRoutes,
-      prefix: '/api/keys',
+      prefix: "/api/keys",
     },
     {
       plugin: messageRoutes,
-      prefix: '/api/messages',
+      prefix: "/api/messages",
     },
+    { plugin: contactsRoutes, prefix: "/api/contacts" },
   ];
 
   for (const route of routes) {
@@ -43,19 +44,17 @@ async function registerRoutes() {
   }
 }
 
-
 function registerHealthRoute() {
-  app.get('/health', async () => ({
+  app.get("/health", async () => ({
     success: true,
-    message: 'Secure Chat API is running.',
+    message: "Secure Chat API is running.",
     data: {
-      service: 'secure-chat-backend',
-      version: '1.0.0',
+      service: "secure-chat-backend",
+      version: "1.0.0",
       timestamp: new Date().toISOString(),
     },
   }));
 }
-
 
 function registerErrorHandler() {
   app.setErrorHandler((error, request, reply) => {
@@ -66,19 +65,15 @@ function registerErrorHandler() {
     reply.status(statusCode).send({
       success: false,
       error: {
-        code: error.code || 'INTERNAL_SERVER_ERROR',
-        message:
-          statusCode >= 500
-            ? 'Internal Server Error'
-            : error.message,
+        code: error.code || "INTERNAL_SERVER_ERROR",
+        message: statusCode >= 500 ? "Internal Server Error" : error.message,
       },
-      ...(process.env.NODE_ENV !== 'production' && {
+      ...(process.env.NODE_ENV !== "production" && {
         stack: error.stack,
       }),
     });
   });
 }
-
 
 async function buildApp() {
   await registerPlugins(app);

@@ -280,6 +280,12 @@ export const usersRelations = relations(users, ({ many }) => ({
   publicKeys: many(publicKeys),
   refreshTokens: many(refreshTokens),
   securityEvents: many(securityEvents),
+  sentContactRequests: many(contactRequests, {
+    relationName: "SentContactRequests",
+  }),
+  receivedContactRequests: many(contactRequests, {
+    relationName: "ReceivedContactRequests",
+  }),
 }));
 
 export const publicKeysRelations = relations(publicKeys, ({ one }) => ({
@@ -345,3 +351,19 @@ export const securityEventsRelations = relations(securityEvents, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const contactRequestsRelations = relations(
+  contactRequests,
+  ({ one }) => ({
+    sender: one(users, {
+      fields: [contactRequests.senderId],
+      references: [users.id],
+      relationName: "SentContactRequests",
+    }),
+    receiver: one(users, {
+      fields: [contactRequests.receiverId],
+      references: [users.id],
+      relationName: "ReceivedContactRequests",
+    }),
+  }),
+);

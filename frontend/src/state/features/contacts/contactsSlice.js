@@ -1,5 +1,8 @@
+// src/state/features/contacts/contactsSlice.js
+
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { getApiErrorMessage } from "../../../api/apiError.js";
+import { apiClient } from "../../../api/httpClient.js";
 import { keyService } from "../../../services/keyService.js";
 import { userService } from "../../../services/userService.js";
 import {
@@ -12,14 +15,110 @@ import {
   getInitials,
 } from "../../../utils/contact.js";
 
+/**
+ * Load local contacts from browser storage
+ */
 export const loadContacts = createAsyncThunk(
   "contacts/loadContacts",
   async (ownerId) => loadStoredContacts(ownerId),
 );
 
 /**
- * Start or select a conversation with a discovered target user.
- * Fetches public key on the fly and saves contact locally.
+ * Fetch pending incoming contact requests from the backend
+ */
+export const fetchPendingRequests = createAsyncThunk(
+  "contacts/fetchPendingRequests",
+  async (_, { rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.get("/contacts/requests/pending");
+      return data.data; // Array of pending request objects
+    } catch (error) {
+      return rejectWithValue(
+        getApiErrorMessage(error, "Failed to load pending contact requests."),
+      );
+    }
+  },
+);
+
+/**
+ * Send a new contact request to a user by their public ID
+ */
+export const sendContactRequest = createAsyncThunk(
+  "contacts/sendContactRequest",
+  async (targetPublicId, { rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.post("/contacts/requests", {
+        receiverPublicId: targetPublicId,
+      });
+      return data.data;
+    } catch (error) {
+      return rejectWithValue(
+        getApiErrorMessage(error, "Failed to send contact request."),
+      );
+    }
+  },
+);
+
+/**
+ * Respond (ACCEPT or REJECT) to an incoming contact request
+ */
+export const respondToContactRequest = createAsyncThunk(
+  "contacts/respondToContactRequest",
+  async ({ requestId, action, sender }, { getState, rejectWithValue }) => {
+    try {
+      const { data } = await apiClient.post("/contacts/requests/respond", {
+        requestId,
+        action, // "ACCEPTED" | "REJECTED"
+      });
+
+      if (action === "ACCEPTED" && sender) {
+        // Fetch sender's public key to construct active contact entry
+        const publicKeyObj = await keyService
+          .getPublicKey(sender.publicId)
+          .catch(() => null);
+
+        const displayName =
+          sender.displayName ||
+          sender.username ||
+          fallbackContactName(sender.publicId);
+
+        const newContact = {
+          publicId: sender.publicId,
+          username: sender.username,
+          email: sender.email || "",
+          name: displayName,
+          initials: getInitials(displayName),
+          color: colorFromId(sender.publicId),
+          fingerprint: publicKeyObj?.fingerprint || publicKeyObj?.key || "",
+          algorithm: publicKeyObj?.algorithm || "ECDH-P256",
+          publicKey: publicKeyObj?.key || null,
+          online: false,
+          addedAt: new Date().toISOString(),
+        };
+
+        const currentUserId = getState().auth.user?.publicId;
+        const existing = getState().contacts.items;
+        const updated = [
+          newContact,
+          ...existing.filter((item) => item.publicId !== sender.publicId),
+        ];
+
+        saveStoredContacts(currentUserId, updated);
+
+        return { requestId, action, contact: newContact };
+      }
+
+      return { requestId, action, contact: null };
+    } catch (error) {
+      return rejectWithValue(
+        getApiErrorMessage(error, "Failed to respond to request."),
+      );
+    }
+  },
+);
+
+/**
+ * Legacy startConversation helper (fallback)
  */
 export const startConversation = createAsyncThunk(
   "contacts/startConversation",
@@ -81,57 +180,9 @@ export const startConversation = createAsyncThunk(
   },
 );
 
-export const addContact = createAsyncThunk(
-  "contacts/addContact",
-  async ({ publicId, name }, { getState, rejectWithValue }) => {
-    const normalizedId = publicId.trim();
-    const displayName = name.trim() || fallbackContactName(normalizedId);
-    const currentUserId = getState().auth.user?.publicId;
-
-    if (!normalizedId) {
-      return rejectWithValue("A public ID is required.");
-    }
-
-    if (normalizedId === currentUserId) {
-      return rejectWithValue("You cannot add yourself as a contact.");
-    }
-
-    try {
-      const publicKey = await keyService.getPublicKey(normalizedId);
-
-      const contact = {
-        publicId: normalizedId,
-        name: displayName,
-        initials: getInitials(displayName),
-        color: colorFromId(normalizedId),
-        fingerprint: publicKey.fingerprint,
-        algorithm: publicKey.algorithm,
-        publicKey: publicKey.key,
-        online: false,
-        addedAt: new Date().toISOString(),
-      };
-
-      const existing = getState().contacts.items;
-
-      const updated = [
-        contact,
-        ...existing.filter((item) => item.publicId !== contact.publicId),
-      ];
-
-      saveStoredContacts(currentUserId, updated);
-
-      return contact;
-    } catch (error) {
-      return rejectWithValue(
-        getApiErrorMessage(
-          error,
-          "No public key was found for that user. The user must finish key setup first.",
-        ),
-      );
-    }
-  },
-);
-
+/**
+ * Ensure an incoming contact is added locally if already accepted
+ */
 export const ensureIncomingContact = createAsyncThunk(
   "contacts/ensureIncomingContact",
   async (publicId, { getState }) => {
@@ -180,7 +231,7 @@ export const ensureIncomingContact = createAsyncThunk(
 );
 
 /**
- * Remove contact thunk to update both Redux & LocalStorage.
+ * Remove contact from Redux & LocalStorage
  */
 export const removeContact = createAsyncThunk(
   "contacts/removeContact",
@@ -196,6 +247,7 @@ export const removeContact = createAsyncThunk(
 
 const initialState = {
   items: [],
+  pendingRequests: [],
   status: "idle",
   error: null,
   loaded: false,
@@ -214,12 +266,25 @@ const contactsSlice = createSlice({
       }
     },
 
+    /**
+     * Realtime socket event trigger when a request is received
+     */
+    incomingRequestReceived(state, action) {
+      const exists = state.pendingRequests.some(
+        (r) => r.id === action.payload.requestId,
+      );
+      if (!exists) {
+        state.pendingRequests.unshift(action.payload);
+      }
+    },
+
     clearContactsError(state) {
       state.error = null;
     },
 
     resetContacts(state) {
       state.items = [];
+      state.pendingRequests = [];
       state.status = "idle";
       state.error = null;
       state.loaded = false;
@@ -241,19 +306,28 @@ const contactsSlice = createSlice({
         state.error = action.payload || null;
         state.loaded = true;
       })
-      .addCase(startConversation.fulfilled, (state, action) => {
-        state.status = "ready";
-        const index = state.items.findIndex(
-          (contact) => contact.publicId === action.payload.publicId,
+      .addCase(fetchPendingRequests.fulfilled, (state, action) => {
+        state.pendingRequests = action.payload;
+      })
+      .addCase(respondToContactRequest.fulfilled, (state, action) => {
+        const { requestId, action: reqAction, contact } = action.payload;
+        // Remove from pending array
+        state.pendingRequests = state.pendingRequests.filter(
+          (r) => r.id !== requestId,
         );
-
-        if (index >= 0) {
-          state.items[index] = action.payload;
-        } else {
-          state.items.unshift(action.payload);
+        // If accepted, add new contact card
+        if (reqAction === "ACCEPTED" && contact) {
+          const index = state.items.findIndex(
+            (item) => item.publicId === contact.publicId,
+          );
+          if (index >= 0) {
+            state.items[index] = contact;
+          } else {
+            state.items.unshift(contact);
+          }
         }
       })
-      .addCase(addContact.fulfilled, (state, action) => {
+      .addCase(startConversation.fulfilled, (state, action) => {
         state.status = "ready";
         const index = state.items.findIndex(
           (contact) => contact.publicId === action.payload.publicId,
@@ -282,7 +356,11 @@ const contactsSlice = createSlice({
   },
 });
 
-export const { setContactPresence, clearContactsError, resetContacts } =
-  contactsSlice.actions;
+export const {
+  setContactPresence,
+  incomingRequestReceived,
+  clearContactsError,
+  resetContacts,
+} = contactsSlice.actions;
 
 export default contactsSlice.reducer;
