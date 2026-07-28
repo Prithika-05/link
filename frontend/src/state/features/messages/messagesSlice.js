@@ -8,14 +8,25 @@ import { keyService } from "../../../services/keyService.js";
 import { messageService } from "../../../services/messageService.js";
 import { socketService } from "../../../services/socketService.js";
 
-// src/state/features/messages/messagesSlice.js
-
 async function decryptConversationMessage(message, currentUserPublicId) {
   const isOutgoing = message.senderPublicId === currentUserPublicId;
+  const targetPublicId = isOutgoing
+    ? message.receiverPublicId
+    : message.senderPublicId;
 
-  // For incoming messages, use the ephemeral key attached to the message.
-  // For outgoing messages sent by the current user, use the receiver's ephemeral key or current key.
-  const counterpartyPublicKey = message.ephemeralPublicKey;
+  let counterpartyPublicKey = message.ephemeralPublicKey;
+
+  // If this is an outgoing message sent by the current user,
+  // we must derive the secret using the RECIPIENT'S public key!
+  if (isOutgoing) {
+    try {
+      const recipientKeyObj = await keyService.getPublicKey(targetPublicId);
+      counterpartyPublicKey = recipientKeyObj.key;
+    } catch {
+      // Fallback to ephemeralPublicKey if fetch fails
+      counterpartyPublicKey = message.ephemeralPublicKey;
+    }
+  }
 
   try {
     const text = await decryptMessage({
@@ -26,6 +37,7 @@ async function decryptConversationMessage(message, currentUserPublicId) {
 
     return { ...message, text, decryptionFailed: false };
   } catch (err) {
+    console.error("Decryption failed for message:", message.id, err);
     return {
       ...message,
       text: "Unable to decrypt this message with the current device key.",
