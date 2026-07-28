@@ -58,6 +58,20 @@ export class ContactsService {
         throw new ValidationError("Already contacts.");
       if (existing.status === "PENDING")
         throw new ValidationError("Request is already pending.");
+
+      // If previous request was REJECTED or unlinked, update it back to PENDING with new sender
+      const [updated] = await this.db
+        .update(contactRequests)
+        .set({
+          senderId: sender.id,
+          receiverId: receiver.id,
+          status: "PENDING",
+          updatedAt: new Date(),
+        })
+        .where(eq(contactRequests.id, existing.id))
+        .returning();
+
+      return { request: updated, receiverUser: receiver, senderUser: sender };
     }
 
     const [request] = await this.db
@@ -76,6 +90,8 @@ export class ContactsService {
     const receiver = await this.db.query.users.findFirst({
       where: eq(users.publicId, receiverPublicId),
     });
+
+    if (!receiver) throw new NotFoundError("User not found.");
 
     const request = await this.db.query.contactRequests.findFirst({
       where: and(
@@ -103,7 +119,7 @@ export class ContactsService {
     if (!user) throw new NotFoundError("User not found.");
 
     const [incoming, outgoing] = await Promise.all([
-      // Incoming requests (people asking to add current user)
+      // Incoming requests
       this.db.query.contactRequests.findMany({
         where: and(
           eq(contactRequests.receiverId, user.id),
@@ -120,7 +136,7 @@ export class ContactsService {
           },
         },
       }),
-      // Outgoing requests (requests current user sent to others)
+      // Outgoing requests
       this.db.query.contactRequests.findMany({
         where: eq(contactRequests.senderId, user.id),
         with: {
@@ -155,7 +171,8 @@ export class ContactsService {
       throw new NotFoundError("User not found.");
     }
 
-    // Delete any existing relationship or pending request between userA and userB
+    // Delete ONLY the contact relationship record from PostgreSQL.
+    // Messages in the `messages` table are kept intact in the database!
     await this.db
       .delete(contactRequests)
       .where(
@@ -175,7 +192,7 @@ export class ContactsService {
   }
 
   /**
-   * Get all publicIds of users who have an ACCEPTED contact relationship with current user
+   * Safely get all publicIds of users who have an ACCEPTED contact relationship
    */
   async getAcceptedContactPublicIds(userPublicId) {
     const user = await this.db.query.users.findFirst({
@@ -185,7 +202,6 @@ export class ContactsService {
 
     if (!user) throw new NotFoundError("User not found.");
 
-    // Find all accepted requests involving this user
     const acceptedRequests = await this.db.query.contactRequests.findMany({
       where: and(
         eq(contactRequests.status, "ACCEPTED"),
@@ -195,15 +211,19 @@ export class ContactsService {
         ),
       ),
       with: {
-        sender: { columns: { publicId: true } },
-        receiver: { columns: { publicId: true } },
+        sender: { columns: { id: true, publicId: true } },
+        receiver: { columns: { id: true, publicId: true } },
       },
     });
 
-    // Extract the other person's publicId for each relationship
-    const acceptedPublicIds = acceptedRequests.map((req) =>
-      req.senderId === user.id ? req.receiver.publicId : req.sender.publicId,
-    );
+    const acceptedPublicIds = acceptedRequests
+      .map((req) => {
+        if (req.senderId === user.id || req.sender?.id === user.id) {
+          return req.receiver?.publicId;
+        }
+        return req.sender?.publicId;
+      })
+      .filter(Boolean);
 
     return acceptedPublicIds;
   }

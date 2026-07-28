@@ -53,6 +53,13 @@ export const loadConversation = createAsyncThunk(
     { getState, rejectWithValue },
   ) => {
     const currentUserPublicId = getState().auth.user?.publicId;
+    const contacts = getState().contacts.items || [];
+
+    // Find when this contact was added to User A's verified contacts
+    const currentContact = contacts.find((c) => c.publicId === contactId);
+    const addedAtTimestamp = currentContact?.addedAt
+      ? new Date(currentContact.addedAt).getTime()
+      : 0;
 
     try {
       const conversation = await messageService.getConversation(contactId, {
@@ -60,8 +67,15 @@ export const loadConversation = createAsyncThunk(
         limit,
       });
 
+      // 1. Filter out messages created BEFORE the contact was re-added
+      const relevantMessages = conversation.messages.filter((msg) => {
+        const msgTime = new Date(msg.createdAt).getTime();
+        return msgTime >= addedAtTimestamp;
+      });
+
+      // 2. Decrypt only the relevant messages
       const messages = await Promise.all(
-        conversation.messages.map((message) =>
+        relevantMessages.map((message) =>
           decryptConversationMessage(message, currentUserPublicId),
         ),
       );

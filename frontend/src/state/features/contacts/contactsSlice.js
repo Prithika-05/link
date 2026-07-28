@@ -14,6 +14,7 @@ import {
   fallbackContactName,
   getInitials,
 } from "../../../utils/contact.js";
+import { clearConversation } from "../messages/messagesSlice.js";
 
 /**
  * Load local contacts from browser storage
@@ -27,11 +28,11 @@ export const loadContacts = createAsyncThunk(
  * Fetch incoming & outgoing contact requests from the backend.
  * Automatically promotes accepted outgoing requests to verified contacts.
  */
+
 export const fetchPendingRequests = createAsyncThunk(
   "contacts/fetchPendingRequests",
   async (_, { getState, rejectWithValue }) => {
     try {
-      // Fetch pending requests AND valid accepted contact IDs simultaneously
       const [{ data: requestsRes }, { data: acceptedRes }] = await Promise.all([
         apiClient.get("/contacts/requests/pending"),
         apiClient.get("/contacts/accepted"),
@@ -44,14 +45,19 @@ export const fetchPendingRequests = createAsyncThunk(
       const currentUserId = getState().auth.user?.publicId;
       const existingContacts = getState().contacts.items || [];
 
-      // 1. Prune local contacts that were deleted by the other user on the server
-      let updatedContacts = existingContacts.filter((contact) =>
-        validAcceptedPublicIds.has(contact.publicId),
-      );
+      // Flag contacts that are still active vs disconnected
+      let contactsChanged = false;
 
-      let contactsChanged = updatedContacts.length !== existingContacts.length;
+      let updatedContacts = existingContacts.map((contact) => {
+        const isStillAccepted = validAcceptedPublicIds.has(contact.publicId);
+        if (contact.isAccepted !== isStillAccepted) {
+          contactsChanged = true;
+          return { ...contact, isAccepted: isStillAccepted };
+        }
+        return contact;
+      });
 
-      // 2. Promote any newly accepted outgoing requests into verified contacts
+      // Promote newly accepted outgoing requests
       const acceptedOutgoing = outgoing.filter(
         (req) => req.status === "ACCEPTED",
       );
@@ -60,11 +66,14 @@ export const fetchPendingRequests = createAsyncThunk(
         const receiver = req.receiver;
         if (!receiver?.publicId) continue;
 
-        const alreadyExists = updatedContacts.some(
+        const existingIndex = updatedContacts.findIndex(
           (item) => item.publicId === receiver.publicId,
         );
 
-        if (!alreadyExists && validAcceptedPublicIds.has(receiver.publicId)) {
+        if (
+          existingIndex === -1 &&
+          validAcceptedPublicIds.has(receiver.publicId)
+        ) {
           const publicKeyObj = await keyService
             .getPublicKey(receiver.publicId)
             .catch(() => null);
@@ -85,6 +94,7 @@ export const fetchPendingRequests = createAsyncThunk(
             algorithm: publicKeyObj?.algorithm || "ECDH-P256",
             publicKey: publicKeyObj?.key || null,
             online: false,
+            isAccepted: true,
             addedAt: new Date().toISOString(),
           };
 
@@ -93,7 +103,6 @@ export const fetchPendingRequests = createAsyncThunk(
         }
       }
 
-      // Persist pruned/updated list to local storage
       if (contactsChanged && currentUserId) {
         saveStoredContacts(currentUserId, updatedContacts);
       }
@@ -113,7 +122,8 @@ export const fetchPendingRequests = createAsyncThunk(
       );
     }
   },
-); /**
+);
+/**
  * Send a new contact request to a user by their public ID
  */
 export const sendContactRequest = createAsyncThunk(
@@ -315,12 +325,12 @@ export const startConversation = createAsyncThunk(
  */
 export const removeContact = createAsyncThunk(
   "contacts/removeContact",
-  async (publicId, { getState, rejectWithValue }) => {
+  async (publicId, { dispatch, getState, rejectWithValue }) => {
     try {
-      // 1. Delete relationship on server
       await apiClient.delete(`/contacts/${encodeURIComponent(publicId)}`);
 
-      // 2. Remove locally from browser storage
+      dispatch(clearConversation(publicId));
+
       const currentUserId = getState().auth.user?.publicId;
       const existing = getState().contacts.items || [];
       const updated = existing.filter((item) => item.publicId !== publicId);
@@ -330,7 +340,7 @@ export const removeContact = createAsyncThunk(
       return publicId;
     } catch (error) {
       return rejectWithValue(
-        getApiErrorMessage(error, "Failed to remove contact from server."),
+        getApiErrorMessage(error, "Failed to remove contact."),
       );
     }
   },

@@ -128,7 +128,10 @@ export default function DashboardPage() {
     event.preventDefault();
     submitDraft();
   };
-
+  const isVerifiedContact = useMemo(() => {
+    if (!selectedContact) return false;
+    return selectedContact.isAccepted !== false;
+  }, [selectedContact]);
   return (
     <AppLayout>
       <div className="chat-layout">
@@ -207,7 +210,6 @@ export default function DashboardPage() {
             )}
           </div>
         </section>
-
         <section className="message-panel">
           {actionMessage && <Alert variant="success">{actionMessage}</Alert>}
 
@@ -254,13 +256,30 @@ export default function DashboardPage() {
                 </div>
               </header>
 
-              <div className="encryption-banner">
-                <Icon name="lock" size={15} />
-                <span>
-                  Text is encrypted in this browser before it is sent to the
-                  backend.
-                </span>
-              </div>
+              {/* Warning Banner if contact relationship is broken */}
+              {!isVerifiedContact ? (
+                <div className="p-4 bg-rose-500/10 border-b border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center justify-between">
+                  <span>
+                    You cannot message this user. Send a contact request to
+                    reconnect.
+                  </span>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleSelectDiscoveredUser(selectedContact)}
+                  >
+                    Send Request
+                  </Button>
+                </div>
+              ) : (
+                <div className="encryption-banner">
+                  <Icon name="lock" size={15} />
+                  <span>
+                    Text is encrypted in this browser before it is sent to the
+                    backend.
+                  </span>
+                </div>
+              )}
 
               {error && <Alert>{error}</Alert>}
 
@@ -271,8 +290,8 @@ export default function DashboardPage() {
                   </div>
                 ) : messages.length === 0 ? (
                   <EmptyState
-                    title={`Start a conversation with ${selectedContact.name}`}
-                    description="Your first message will be encrypted using the contact’s active public key."
+                    title={`No messages with ${selectedContact.name}`}
+                    description="Your conversation history will appear here once you start chatting."
                   />
                 ) : (
                   <>
@@ -291,11 +310,11 @@ export default function DashboardPage() {
                 )}
               </div>
 
+              {/* Message Composer - Disabled if not a verified contact */}
               <form className="message-composer" onSubmit={submit}>
                 <button
                   type="button"
                   aria-label="File messages are not supported by the backend"
-                  title="The backend message schema currently supports encrypted text only."
                   disabled
                 >
                   <Icon name="paperclip" size={20} />
@@ -306,15 +325,20 @@ export default function DashboardPage() {
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={handleComposerKeyDown}
-                  placeholder={`Message ${selectedContact.name.split(" ")[0]}…`}
+                  placeholder={
+                    isVerifiedContact
+                      ? `Message ${selectedContact.name.split(" ")[0]}…`
+                      : "You cannot message this user..."
+                  }
                   maxLength={4000}
+                  disabled={!isVerifiedContact} // <-- Disabled when not verified!
                 />
 
                 <button
                   className="send-button"
                   type="submit"
                   aria-label="Send message"
-                  disabled={!draft.trim() || sending}
+                  disabled={!draft.trim() || sending || !isVerifiedContact}
                 >
                   {sending ? (
                     <span className="button-spinner" />
@@ -325,7 +349,7 @@ export default function DashboardPage() {
               </form>
             </>
           )}
-        </section>
+        </section>{" "}
       </div>
 
       {showUserSearch && (
