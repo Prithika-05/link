@@ -10,7 +10,10 @@ import {
   markConversationRead,
   sendEncryptedMessage,
 } from "../state/features/messages/messagesSlice";
-import { startConversation } from "../state/features/contacts/contactsSlice";
+import {
+  fetchPendingRequests,
+  sendContactRequest,
+} from "../state/features/contacts/contactsSlice";
 import AppLayout from "../layouts/AppLayout";
 import { formatMessageTime } from "../utils/formatters";
 
@@ -18,20 +21,25 @@ export default function DashboardPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
   const currentUserPublicId = useSelector((state) => state.auth.user?.publicId);
-  const contacts = useSelector((state) => state.contacts.items);
+  const contacts = useSelector((state) => state.contacts.items || []);
   const messagesState = useSelector((state) => state.messages);
   const socketStatus = useSelector((state) => state.system.socketStatus);
   const enterToSend = useSelector((state) => state.settings.enterToSend);
+
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState("");
   const [showUserSearch, setShowUserSearch] = useState(false);
+  const [actionMessage, setActionMessage] = useState("");
   const listRef = useRef(null);
+
   const selectedId = searchParams.get("contact");
   const selectedContact = contacts.find(
     (contact) => contact.publicId === selectedId,
   );
   const selectedContactId = selectedContact?.publicId;
+
   const messages = selectedId ? messagesState.byContact[selectedId] || [] : [];
   const loading = selectedId
     ? messagesState.loadingByContact[selectedId]
@@ -40,6 +48,11 @@ export default function DashboardPage() {
     ? messagesState.sendingByContact[selectedId]
     : false;
   const error = selectedId ? messagesState.errorByContact[selectedId] : null;
+
+  // FIX 1: Fetch pending/accepted requests when Dashboard mounts to stay in sync
+  useEffect(() => {
+    dispatch(fetchPendingRequests());
+  }, [dispatch]);
 
   const filteredContacts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -52,11 +65,14 @@ export default function DashboardPage() {
     );
   }, [contacts, query]);
 
+  // FIX 2: Auto-select first contact if none is selected or if selected contact was removed
   useEffect(() => {
-    if (!selectedId && contacts.length > 0) {
-      setSearchParams({ contact: contacts[0].publicId }, { replace: true });
+    if (contacts.length > 0) {
+      if (!selectedId || !selectedContact) {
+        setSearchParams({ contact: contacts[0].publicId }, { replace: true });
+      }
     }
-  }, [contacts, selectedId, setSearchParams]);
+  }, [contacts, selectedId, selectedContact, setSearchParams]);
 
   useEffect(() => {
     if (!selectedContactId) return;
@@ -76,10 +92,18 @@ export default function DashboardPage() {
     dispatch(markConversationRead(contactId));
   };
 
-  const handleSelectDiscoveredUser = async (user) => {
-    const result = await dispatch(startConversation(user));
-    if (startConversation.fulfilled.match(result)) {
-      setSearchParams({ contact: result.payload.publicId }, { replace: true });
+  // FIX 3: Instead of directly starting a conversation, send a Contact Request!
+  const handleSelectDiscoveredUser = async (targetUser) => {
+    setShowUserSearch(false);
+    const result = await dispatch(sendContactRequest(targetUser));
+
+    if (sendContactRequest.fulfilled.match(result)) {
+      setActionMessage(
+        `Contact request sent to @${targetUser.username || "user"}!`,
+      );
+      setTimeout(() => setActionMessage(""), 4000);
+    } else {
+      alert(result.payload || "Failed to send contact request.");
     }
   };
 
@@ -87,7 +111,7 @@ export default function DashboardPage() {
     const text = draft.trim();
     if (!text || !selectedContact || sending) return;
 
-    const result = dispatch(
+    const result = await dispatch(
       sendEncryptedMessage({ contactId: selectedContact.publicId, text }),
     );
 
@@ -122,6 +146,7 @@ export default function DashboardPage() {
               <Icon name="plus" size={20} />
             </button>
           </div>
+
           <label className="chat-search">
             <Icon name="search" size={18} />
             <input
@@ -130,10 +155,12 @@ export default function DashboardPage() {
               placeholder="Search chats"
             />
           </label>
+
           <div className="conversation-label">
             <span>CONVERSATIONS</span>
             <button onClick={() => navigate("/contacts")}>Manage</button>
           </div>
+
           <div className="conversation-list">
             {filteredContacts.map((contact) => {
               const contactMessages =
@@ -145,7 +172,9 @@ export default function DashboardPage() {
               return (
                 <button
                   key={contact.publicId}
-                  className={`conversation-item ${selectedId === contact.publicId ? "selected" : ""}`}
+                  className={`conversation-item ${
+                    selectedId === contact.publicId ? "selected" : ""
+                  }`}
                   onClick={() => selectContact(contact.publicId)}
                 >
                   <Avatar
@@ -168,10 +197,11 @@ export default function DashboardPage() {
                 </button>
               );
             })}
+
             {filteredContacts.length === 0 && (
               <div className="conversation-empty">
                 {contacts.length === 0
-                  ? "Search for a user by @username or email to start chatting."
+                  ? "Send a contact request to someone to start chatting."
                   : "No conversation matches this search."}
               </div>
             )}
@@ -179,14 +209,16 @@ export default function DashboardPage() {
         </section>
 
         <section className="message-panel">
+          {actionMessage && <Alert variant="success">{actionMessage}</Alert>}
+
           {!selectedContact ? (
             <EmptyState
               icon="users"
-              title="No conversation selected"
-              description="Search for users by username or email to initiate a direct encrypted chat."
+              title="No contact selected"
+              description="Send contact requests to connect with verified users before messaging."
               action={
                 <Button icon="plus" onClick={() => setShowUserSearch(true)}>
-                  New Chat
+                  Add New Contact
                 </Button>
               }
             />
@@ -210,16 +242,18 @@ export default function DashboardPage() {
                     </small>
                   </span>
                 </div>
-                {/* In DashboardPage.jsx inside the message-header actions */}
+
                 <div className="message-actions">
                   <button
-                    aria-label="View contact fingerprint"
+                    aria-label="View contacts page"
                     onClick={() => navigate("/contacts")}
+                    title="Manage Contacts"
                   >
                     <Icon name="shield" size={19} />
                   </button>
-                </div>{" "}
+                </div>
               </header>
+
               <div className="encryption-banner">
                 <Icon name="lock" size={15} />
                 <span>
@@ -227,7 +261,9 @@ export default function DashboardPage() {
                   backend.
                 </span>
               </div>
+
               {error && <Alert>{error}</Alert>}
+
               <div className="message-list" ref={listRef}>
                 {loading && messages.length === 0 ? (
                   <div className="message-loading">
@@ -254,6 +290,7 @@ export default function DashboardPage() {
                   </>
                 )}
               </div>
+
               <form className="message-composer" onSubmit={submit}>
                 <button
                   type="button"
@@ -263,6 +300,7 @@ export default function DashboardPage() {
                 >
                   <Icon name="paperclip" size={20} />
                 </button>
+
                 <textarea
                   rows="1"
                   value={draft}
@@ -271,6 +309,7 @@ export default function DashboardPage() {
                   placeholder={`Message ${selectedContact.name.split(" ")[0]}…`}
                   maxLength={4000}
                 />
+
                 <button
                   className="send-button"
                   type="submit"
