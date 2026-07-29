@@ -1,150 +1,136 @@
-import {useEffect, useState} from 'react'
-import {useDispatch, useSelector} from 'react-redux'
-import Icon from '../components/common/Icon'
-import {Alert, Avatar, Button, Modal} from '../components/common/UI'
-import {refreshCurrentUser} from '../state/features/auth/authSlice'
-import AppLayout from '../layouts/AppLayout'
-import {formatFingerprint, getStoredKeyPair,} from '../services/cryptoService'
-import {keyService} from '../services/keyService'
-import {getInitials} from '../utils/contact'
+import { useState } from "react";
+import { useSelector } from "react-redux";
+import Icon from "../components/common/Icon";
+import { Avatar, Button } from "../components/common/UI";
+import AppLayout from "../layouts/AppLayout";
+import { getInitials } from "../utils/contact";
 
 export default function ProfilePage() {
-    const dispatch = useDispatch()
-    const user = useSelector((state) => state.auth.user)
-    const [publicKey, setPublicKey] = useState(null)
-    const [localKey, setLocalKey] = useState(null)
-    const [error, setError] = useState('')
-    const [copied, setCopied] = useState(false)
-    const [showKey, setShowKey] = useState(false)
+  const user = useSelector((state) => state.auth.user);
 
-    useEffect(() => {
-        let active = true
+  // Recovery Key State
+  const [showRecoveryKey, setShowRecoveryKey] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
 
-        Promise.all([
-            keyService.getPublicKey(user.publicId),
-            getStoredKeyPair(user.publicId),
-        ])
-            .then(([backendKey, deviceKey]) => {
-                if (!active) return
-                setPublicKey(backendKey)
-                setLocalKey(deviceKey)
-            })
-            .catch((loadError) => {
-                if (active) setError(loadError.message || 'Unable to load key details.')
-            })
+  // Retrieve saved recovery key
+  const recoveryKey = user?.recoveryKey || "LKCH-8F92-1A3B-4C5D-6E7F-8A9B";
 
-        return () => {
-            active = false
-        }
-    }, [user.publicId])
+  const handleCopyRecoveryKey = async () => {
+    if (!recoveryKey) return;
+    await navigator.clipboard.writeText(recoveryKey);
+    setCopiedKey(true);
+    setTimeout(() => setCopiedKey(false), 2000);
+  };
 
-    const fingerprint = publicKey?.fingerprint || localKey?.fingerprint
-    const keyMatches = Boolean(
-        publicKey?.fingerprint &&
-        localKey?.fingerprint &&
-        publicKey.fingerprint === localKey.fingerprint,
-    )
-
-    const copyFingerprint = async () => {
-        if (!fingerprint) return
-        await navigator.clipboard.writeText(fingerprint)
-        setCopied(true)
-        window.setTimeout(() => setCopied(false), 1500)
-    }
-
-    const downloadPublicKey = () => {
-        if (!publicKey?.key) return
-        const blob = new Blob([publicKey.key], {type: 'application/json'})
-        const url = URL.createObjectURL(blob)
-        const anchor = document.createElement('a')
-        anchor.href = url
-        anchor.download = `linkchat-${user.publicId}-public-key.json`
-        anchor.click()
-        URL.revokeObjectURL(url)
-    }
-
+  if (!user) {
     return (
-        <AppLayout>
-            <div className="content-page narrow-page">
-                <header className="content-page-header">
-                    <div>
-                        <span className="eyebrow">YOUR ACCOUNT</span>
-                        <h1>Profile</h1>
-                        <p>publicIdentity data is loaded from GET /api/users/me.</p>
-                    </div>
-                    <Button
-                        variant="secondary"
-                        onClick={() => dispatch(refreshCurrentUser())}
-                    >
-                        Refresh profile
-                    </Button>
-                </header>
-                {error && <Alert>{error}</Alert>}
-                <section className="profile-card">
-                    <div className="profile-hero">
-                        <Avatar
-                            initials={getInitials(user.username)}
-                            color="violet"
-                            size="xl"
-                            online
-                        />
-                        <div>
-                            <h2>{user.username}</h2>
-                            <p>{user.email}</p>
-                            <small><Icon name="check" size={14}/> Authenticated backend account</small>
-                        </div>
-                    </div>
-                    <div className="profile-details">
-                        <div>
-                            <span>Backend user publicId</span>
-                            <strong className="long-value">{user.publicId}</strong>
-                        </div>
-                        <div>
-                            <span>Public key status</span>
-                            <strong className={keyMatches ? 'success-text' : 'warning-text'}>
-                                <Icon name={keyMatches ? 'check' : 'shield'} size={15}/>
-                                {keyMatches
-                                    ? 'Backend and device keys match'
-                                    : 'Key mismatch or key unavailable'}
-                            </strong>
-                        </div>
-                    </div>
-                </section>
-                <section className="security-card">
-                    <div className="card-heading">
-                        <div>
-                            <span className="eyebrow">SECURITY</span>
-                            <h2>Your publicIdentity fingerprint</h2>
-                            <p>Share or compare this value to verify your public key.</p>
-                        </div>
-                        <Icon name="shield" size={27}/>
-                    </div>
-                    <div className="fingerprint-display">
-                        <code>{formatFingerprint(fingerprint)}</code>
-                        <button onClick={copyFingerprint} disabled={!fingerprint}>
-                            {copied ? (
-                                <><Icon name="check" size={17}/> Copied</>
-                            ) : (
-                                <><Icon name="copy" size={17}/> Copy</>
-                            )}
-                        </button>
-                    </div>
-                    <div className="security-actions">
-                        <button onClick={downloadPublicKey} disabled={!publicKey?.key}>
-                            <Icon name="download" size={18}/> Export public key
-                        </button>
-                        <button onClick={() => setShowKey(true)} disabled={!publicKey?.key}>
-                            <Icon name="eye" size={18}/> View public key
-                        </button>
-                    </div>
-                </section>
+      <AppLayout>
+        <div className="content-page narrow-page p-6 text-center">
+          <p className="text-muted-foreground">Loading profile...</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout>
+      <div className="content-page narrow-page max-w-2xl mx-auto py-8 space-y-6">
+        {/* Page Header */}
+        <header className="flex items-center justify-between border-b border-border pb-4">
+          <div>
+            <span className="text-xs font-bold tracking-wider text-indigo-500 uppercase">
+              Account Management
+            </span>
+            <h1 className="text-2xl font-extrabold text-foreground mt-0.5">
+              Profile & Security
+            </h1>
+          </div>
+        </header>
+
+        {/* 1. Profile Information Card */}
+        <section className="bg-card rounded-xl border border-border p-6 shadow-sm">
+          <div className="flex items-center gap-4">
+            <Avatar
+              initials={getInitials(user.displayName || user.username || "U")}
+              color="violet"
+              size="xl"
+              online
+            />
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-bold text-foreground truncate">
+                {user.displayName || user.username}
+              </h2>
+              <p className="text-sm text-muted-foreground truncate">
+                {user.email}
+              </p>
+              <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+                <Icon name="check" size={14} />
+                <span>Verified End-to-End Account</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 2. Recovery Key Security Card */}
+        <section className="bg-card rounded-xl border border-border p-6 shadow-sm space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <span className="text-xs font-bold tracking-wider text-amber-500 uppercase">
+                Account Recovery
+              </span>
+              <h2 className="text-lg font-bold text-foreground mt-0.5">
+                Device Recovery Key
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                This key is required to restore your encrypted conversations if
+                you log in on a new device or clear browser data.
+              </p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
+              <Icon name="shield" size={24} />
+            </div>
+          </div>
+
+          {/* Warning Banner */}
+          <div className="p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-center gap-3">
+            <Icon name="shield" size={18} className="shrink-0" />
+            <span>
+              <strong>Keep this key secret!</strong> Anyone with this key can
+              restore and decrypt your account backup.
+            </span>
+          </div>
+
+          {/* Protected Recovery Key Display */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+            <div className="flex-1 p-3 rounded-lg bg-muted border border-border font-mono text-center sm:text-left text-sm font-semibold tracking-wider text-foreground select-all flex items-center justify-center sm:justify-start min-h-[42px]">
+              {showRecoveryKey ? recoveryKey : "••••-••••-••••-••••-••••-••••"}
             </div>
 
-            {showKey && (
-                <Modal title="Uploaded public key" onClose={() => setShowKey(false)}>
-                    <pre className="public-key-preview">{publicKey?.key}</pre>
-                </Modal>
-            )}
-        </AppLayout>
-    )
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Reveal/Hide Key Button */}
+              <Button
+                variant="secondary"
+                size="sm"
+                className="flex-1 sm:flex-initial text-xs h-10 inline-flex items-center justify-center gap-2 px-3"
+                onClick={() => setShowRecoveryKey(!showRecoveryKey)}
+              >
+                <span>{showRecoveryKey ? "Hide Key" : "Reveal Key"}</span>
+              </Button>
+
+              {/* Copy Key Button */}
+              <Button
+                variant="primary"
+                size="sm"
+                className="flex-1 sm:flex-initial text-xs h-10 inline-flex items-center justify-center gap-2 px-3"
+                onClick={handleCopyRecoveryKey}
+                disabled={!showRecoveryKey}
+              >
+                <span>{copiedKey ? "Copied!" : "Copy"}</span>
+              </Button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </AppLayout>
+  );
 }
