@@ -1,175 +1,400 @@
-# Link Me - End-to-End Encrypted Web Messenger
 
-Link Me is a browser-based messaging app built for our Computer Systems Security module. The central idea is simple: two people can message each other, and the server never sees the content of any message. All encryption happens in the browser using the Web Crypto API. The backend exists only to route ciphertext and manage accounts, and it is treated as a potential adversary in our threat model.
+# LinkMe – End-to-End Encrypted Messaging Application
 
----
-
-## Table of Contents
-
-1. [What It Does](#what-it-does)
-2. [Encryption Flow](#encryption-flow)
-3. [Threat Model](#threat-model)
-4. [Tech Stack](#tech-stack)
-5. [Repo Layout](#repo-layout)
-6. [Deployment](#deployment)
-7. [AI Attribution](#ai-attribution)
+> A secure, real-time messaging platform implementing End-to-End Encryption (E2EE), JWT authentication, Redis caching, Socket.IO communication, Docker containerization, and Nginx reverse proxying.
 
 ---
 
-## What It Does
+# Table of Contents
 
-- Users register with a username and password. On registration, an ECDH P-256 key pair is generated in the browser.
-- The public key is published to the user's personal GitHub Pages site. The private key never leaves the browser.
-- To start a conversation, you enter the other person's GitHub Pages URL. The app fetches their public key directly from there.
-- For each message sent, a fresh ephemeral ECDH key pair is generated. A shared secret is derived via ECDH, then used to derive an AES-GCM key via HKDF. The message is encrypted with that key, and the ephemeral public key is sent alongside the ciphertext so the recipient can derive the same secret.
-- The server stores and forwards ciphertext only. It cannot decrypt anything.
-- WebSockets handle real-time delivery notifications so the UI updates without polling.
+1. Project Overview
+2. Objectives
+3. Features
+4. Technology Stack
+5. System Architecture
+6. Complete Application Workflow
+7. Authentication (JWT & Refresh Tokens)
+8. End-to-End Encryption
+9. Redis
+10. Nginx
+11. Docker & Deployment
+12. Database Design
+13. Folder Structure
+14. Security Features
+15. Future Enhancements
+16. Conclusion
 
 ---
 
-## Encryption Flow
+# 1. Project Overview
 
-This is the per-message flow, step by step:
+LinkMe is a privacy-focused messaging application designed to provide secure real-time communication between users.
 
+Unlike conventional messaging systems, LinkMe encrypts messages on the client before transmission. The backend only stores encrypted data and never has access to plaintext.
+
+Core objectives:
+- Secure authentication
+- End-to-End Encryption
+- Real-time communication
+- Scalability
+- Modern deployment with Docker
+
+---
+
+# 2. Objectives
+
+- Secure user authentication
+- Protect passwords using bcrypt
+- Encrypt every message
+- Prevent replay attacks
+- Deliver messages in real time
+- Store only encrypted payloads
+- Support scalable deployment
+
+---
+
+# 3. Features
+
+- User registration & login
+- JWT authentication
+- Refresh token authentication
+- Contact management
+- Real-time messaging
+- Online/offline presence
+- Read receipts
+- End-to-End Encryption
+- Redis caching & Pub/Sub
+- Docker deployment
+- Nginx reverse proxy
+
+---
+
+# 4. Technology Stack
+
+| Layer | Technology |
+|------|------------|
+| Frontend | React + Web Crypto API |
+| Backend | Fastify (Node.js) |
+| Database | PostgreSQL |
+| Cache | Redis |
+| Real-Time | Socket.IO |
+| ORM | Drizzle ORM |
+| Authentication | JWT |
+| Password Security | bcrypt |
+| Encryption | ECDH + HKDF + AES-GCM |
+| Reverse Proxy | Nginx |
+| Deployment | Docker & Docker Compose |
+
+---
+
+# 5. System Architecture
+
+```text
+                Browser
+                   │
+               HTTPS
+                   │
+                   ▼
+                Nginx
+                   │
+         Reverse Proxy
+                   │
+                   ▼
+             Fastify API
+                   │
+      ┌────────────┼─────────────┐
+      ▼            ▼             ▼
+ Authentication Socket.IO Business Logic
+      │            │
+      └──────┬─────┘
+             ▼
+      ┌──────────────┐
+      ▼              ▼
+   PostgreSQL      Redis
 ```
-Sender                                    Recipient
-------                                    ---------
-1. Fetch the recipient's public key
-   from their GitHub Pages URL
 
-2. Generate ephemeral ECDH key pair
-   (new pair per message)
+---
 
-3. ECDH(ephemeral private, recipient public)
-   - raw shared secret
+# 6. Complete Workflow
 
-4. HKDF(shared secret, salt, "Link v1")
-   - 256-bit AES-GCM key
+## Registration
 
-5. Generate a random 12-byte IV
+1. User enters username, email and password.
+2. Backend validates inputs.
+3. Password is hashed using bcrypt.
+4. User record is saved in PostgreSQL.
+5. Browser generates an ECDH public/private key pair.
+6. Public key and fingerprint are uploaded.
+7. Private key remains on the client device.
 
-6. AES-GCM encrypt(plaintext, key, IV)
-   - ciphertext + auth tag
+## Login
 
-7. Send to server:
-   { ephemeralPublicKey, IV, ciphertext }
-                                          8. Receive ciphertext bundle
+1. User submits email and password.
+2. Backend retrieves user record.
+3. bcrypt.compare() verifies password.
+4. Backend creates:
+   - Access Token (JWT)
+   - Refresh Token
+5. JWT is returned to the browser.
+6. Refresh token is stored securely.
 
-                                          9. ECDH(recipient private,
-                                             ephemeralPublicKey)
-                                             - same shared secret
+## Authentication
 
-                                          10. HKDF(shared secret, salt, "Link v1")
-                                              - same AES-GCM key
+Each protected request sends:
 
-                                          11. AES-GCM decrypt(ciphertext, key, IV)
-                                              - plaintext
+Authorization: Bearer <JWT>
+
+Backend:
+- verifies JWT signature
+- checks expiry
+- extracts user id
+- authorizes the request
+
+## WebSocket Connection
+
+After login:
+
+- Browser opens Socket.IO connection.
+- JWT authenticates the socket.
+- User joins a private room.
+- Redis marks user as online.
+
+## Contact Request
+
+1. User searches another user.
+2. Sends contact request.
+3. Backend validates request.
+4. PostgreSQL stores pending request.
+5. Socket.IO notifies recipient.
+6. Recipient accepts.
+7. Status becomes ACCEPTED.
+
+## Secure Messaging
+
+Sender:
+
+1. Generates an Ephemeral Key Pair.
+2. Uses ECDH with recipient public key.
+3. HKDF derives AES key.
+4. AES-GCM encrypts plaintext.
+5. Sends:
+   - Ciphertext
+   - IV
+   - Authentication Tag
+   - Ephemeral Public Key
+
+Backend:
+
+- Verifies JWT.
+- Checks replay protection with Redis.
+- Stores encrypted payload only.
+- Uses Socket.IO to notify recipient.
+
+Recipient:
+
+1. Downloads encrypted message.
+2. Uses private key + sender ephemeral public key.
+3. ECDH derives identical shared secret.
+4. HKDF derives identical AES key.
+5. AES-GCM decrypts locally.
+
+## Logout
+
+- Refresh token revoked.
+- JWT discarded.
+- Socket disconnected.
+- Redis marks user offline.
+
+---
+
+# 7. JWT & Refresh Tokens
+
+## Access Token
+
+- Short-lived
+- Used on every protected request
+- Contains authenticated user identity
+
+## Refresh Token
+
+- Long-lived
+- Used only to generate a new access token
+- Revoked during logout
+
+Flow:
+
+```text
+Login
+  │
+  ▼
+JWT + Refresh Token
+  │
+Protected APIs
+  │
+JWT Expires
+  │
+Refresh Endpoint
+  │
+New JWT
 ```
 
-**Why ephemeral keys per message?**
-If a long-term private key is ever compromised, past messages stay protected because each one was encrypted under a different derived key. This gives forward secrecy at the message level.
-
-**Why GitHub Pages for public keys?**
-It avoids trusting the server as a key directory. If the server hosted public keys, a malicious server could substitute its own key and run a man-in-the-middle attack. GitHub Pages gives each user a URL they control independently of the Link server.
-
-**Key derivation details:**
-- Curve: P-256
-- KDF: HKDF with SHA-256, info string `"Link v1"`
-- Symmetric cipher: AES-GCM, 256-bit key, 96-bit IV (randomly generated per message)
-- All operations use the browser's native `window.crypto.subtle` API
-
 ---
 
-## Threat Model
+# 8. End-to-End Encryption
 
-**What we protect against:**
+Encryption Pipeline
 
-| Threat | Mitigation |
-|---|---|
-| Curious/compromised server reading messages | All encryption in browser; server only sees ciphertext |
-| Replay attacks | Each message has a unique IV and ephemeral key |
-| Stolen long-term private key exposing past messages | Ephemeral keys per message (forward secrecy) |
-| JWT theft enabling session hijacking | Short-lived JWTs + Redis blacklist on logout |
-| Brute-force login | bcrypt password hashing + rate limiting on auth endpoints |
-| Key substitution by server | Public keys hosted on user-controlled GitHub Pages, not server |
-
-**What we do NOT protect against (out of scope):**
-
-- **Endpoint compromise.** If the recipient's device or browser is compromised, an attacker can read decrypted messages. This is true of all E2EE systems.
-- **Key verification / TOFU.** We do not implement a safety number or fingerprint comparison mechanism. A user could point their Link profile at someone else's GitHub Pages URL. In a production system, you would want out-of-band key verification.
-- **Metadata.** The server knows who is talking to whom, when, and how often. Only the message content is hidden.
-- **Denial of service.** Rate limiting is basic and not production-grade.
-- **GitHub Pages availability.** If a user's GitHub Pages site is down, their public key cannot be fetched.
-
----
-
-## Tech Stack
-
-**Backend**
-- Node.js + Express (CommonJS)
-- PostgreSQL via Neon (hosted)
-- Prisma ORM
-- Redis via Upstash (JWT blacklisting)
-- WebSockets (`ws` library) for real-time notifications
-
-**Frontend**
-- React + Vite
-- Web Crypto API (built into modern browsers, no third-party crypto library)
-
-**Infrastructure**
-- Backend hosted on Render
-- Frontend hosted on Vercel
-- Public keys hosted on each user's GitHub Pages
-
----
-
-## Repo Layout
-
+```text
+Plaintext
+   │
+Generate Ephemeral Key
+   │
+ECDH
+   │
+HKDF
+   │
+AES-GCM
+   │
+Ciphertext
 ```
-link/
-├── backend/
-│   ├── prisma/
-│   │   └── schema.prisma          # Database schema
-│   ├── src/
-│   │   ├── routes/
-│   │   │   ├── auth.js            # Register, login, logout
-│   │   │   └── messages.js        # Send, fetch messages
-│   │   ├── middleware/
-│   │   │   ├── auth.js            # JWT verification middleware
-│   │   │   └── rateLimit.js       # Rate limiting
-│   │   ├── services/
-│   │   │   ├── redis.js           # JWT blacklist logic
-│   │   │   └── websocket.js       # WebSocket notification handler
-│   │   └── index.js               # Express app entry point
-│   ├── .env.example
-│   └── package.json
-│
+
+Database stores:
+
+- Ciphertext
+- IV
+- Authentication Tag
+- Ephemeral Public Key
+
+No plaintext is stored.
+
+---
+
+# 9. Redis
+
+Redis provides:
+
+- Online presence
+- Replay attack protection
+- Socket.IO Pub/Sub
+- Temporary cache
+- Fast in-memory operations
+
+---
+
+# 10. Nginx
+
+Responsibilities:
+
+- HTTPS termination
+- Reverse proxy
+- Static file hosting
+- WebSocket upgrade
+- Compression
+- Load balancing
+- Rate limiting
+
+---
+
+# 11. Docker
+
+Docker Compose starts:
+
+- Frontend
+- Backend
+- PostgreSQL
+- Redis
+- Nginx
+
+Benefits:
+
+- Consistent environments
+- Easy deployment
+- Container isolation
+- Simple scaling
+
+---
+
+# 12. Database Design
+
+## Users
+- id
+- username
+- email
+- password_hash
+
+## PublicKeys
+- user_id
+- public_key
+- fingerprint
+
+## Contacts
+- sender
+- receiver
+- status
+
+## Messages
+- sender
+- receiver
+- ciphertext
+- iv
+- auth_tag
+- ephemeral_public_key
+- timestamp
+
+## RefreshTokens
+- token
+- expiry
+- user_id
+
+---
+
+# 13. Folder Structure
+
+```text
+project/
 ├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── components/            # React UI components
-│   │   ├── crypto/
-│   │   │   └── messaging.js       # All Web Crypto API logic
-│   │   ├── api/                   # API client functions
-│   │   ├── pages/                 # Route-level components
-│   │   └── main.jsx
-│   ├── .env.example
-│   └── package.json
-│
+├── backend/
+│   ├── auth/
+│   ├── contacts/
+│   ├── messages/
+│   ├── socket/
+│   ├── db/
+│   └── server.js
+├── nginx/
+├── docker-compose.yml
 └── README.md
 ```
 
 ---
 
-## Deployment
+# 14. Security Features
 
-| Service | Purpose | Free tier used |
-|---|---|---|
-| Render | Backend (Node/Express) | Yes |
-| Vercel | Frontend (React/Vite) | Yes |
-| Neon | PostgreSQL | Yes |
-| Upstash | Redis | Yes |
-
-Environment variables for the deployed backend and frontend follow the same structure as the local `.env` files above, set through each platform's dashboard.
+- bcrypt password hashing
+- JWT authentication
+- Refresh token rotation
+- End-to-End Encryption
+- ECDH key exchange
+- HKDF key derivation
+- AES-GCM authenticated encryption
+- Forward secrecy using ephemeral keys
+- Replay attack prevention
+- SQL injection protection through ORM
+- HTTPS via Nginx
 
 ---
+
+# 15. Future Enhancements
+
+- Group messaging
+- Voice & video calls
+- File encryption
+- Push notifications
+- Multi-device support
+- Message search
+- Backup and recovery
+
+---
+
+# 16. Conclusion
+
+LinkMe demonstrates a modern secure messaging architecture that combines JWT authentication, Redis, PostgreSQL, Socket.IO, Docker, and Nginx with browser-side End-to-End Encryption using ECDH, HKDF, and AES-GCM. By ensuring that encryption and decryption occur exclusively on client devices, the platform provides confidentiality, integrity, and forward secrecy while allowing secure, scalable, real-time communication.
