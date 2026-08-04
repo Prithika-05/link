@@ -157,6 +157,7 @@ export const keyBackups = pgTable("keyBackups", {
   encryptedPrivateKey: text("encrypted_private_key").notNull(),
   salt: text("salt").notNull(),
   iv: text("iv").notNull(),
+  fingerprint: text("fingerprint"), // <-- ADD THIS COLUMN
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

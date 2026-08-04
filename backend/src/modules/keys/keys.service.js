@@ -206,6 +206,11 @@ export class KeysService {
       throw new NotFoundError("User not found.");
     }
 
+    console.log(
+      "Saving Key Backup. Received Encrypted Key Length:",
+      data.encryptedPrivateKey?.length,
+    );
+
     const existingBackup = await this.db.query.keyBackups.findFirst({
       where: eq(keyBackups.userId, user.id),
     });
@@ -229,7 +234,7 @@ export class KeysService {
     const [inserted] = await this.db
       .insert(keyBackups)
       .values({
-        id: crypto.randomUUID(),
+        id: globalThis.crypto.randomUUID(),
         userId: user.id,
         encryptedPrivateKey: data.encryptedPrivateKey,
         salt: data.salt,

@@ -1,0 +1,1 @@
+ALTER TABLE "keyBackups" ADD COLUMN "fingerprint" text;

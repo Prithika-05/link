@@ -123,10 +123,12 @@ export async function createKeyPairMaterial(publicId) {
     "jwk",
     generatedPair.publicKey,
   );
+
   const privateJwk = await window.crypto.subtle.exportKey(
     "jwk",
     generatedPair.privateKey,
   );
+
   const privateKey = await window.crypto.subtle.importKey(
     "jwk",
     privateJwk,
@@ -134,13 +136,16 @@ export async function createKeyPairMaterial(publicId) {
     false,
     ["deriveBits"],
   );
+
   const serializedPublicKey = JSON.stringify(publicJwk);
   const fingerprint = await fingerprintPublicKey(serializedPublicKey);
 
+  // 2. Add privateKeyJwk to the returned record!
   const record = {
     publicId,
     algorithm: ALGORITHM,
     privateKey,
+    privateKeyJwk: privateJwk,
     publicKey: serializedPublicKey,
     fingerprint,
     createdAt: new Date().toISOString(),
@@ -275,7 +280,8 @@ export function generateRecoveryKey() {
  */
 async function deriveBackupKey(recoveryKey, salt) {
   const encoder = new TextEncoder();
-  const normalizedKey = recoveryKey.trim().replaceAll("-", "").toUpperCase();
+  // Clean up user input: remove spaces/hyphens and capitalize
+  const normalizedKey = recoveryKey.trim().replace(/[\s-]/g, "").toUpperCase();
 
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
@@ -288,7 +294,7 @@ async function deriveBackupKey(recoveryKey, salt) {
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt,
+      salt: salt,
       iterations: 100000,
       hash: "SHA-256",
     },
@@ -306,12 +312,19 @@ export async function encryptPrivateKeyWithRecoveryKey(
   privateKeyJwk,
   recoveryKey,
 ) {
+  if (!privateKeyJwk) {
+    throw new Error("Cannot backup private key: JWK material is missing.");
+  }
+
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const aesKey = await deriveBackupKey(recoveryKey, salt);
 
+  const jsonString = JSON.stringify(privateKeyJwk);
+  console.log("Encrypting JWK String (Length):", jsonString.length); // Should be ~180-220 characters
+
   const encoder = new TextEncoder();
-  const plaintextData = encoder.encode(JSON.stringify(privateKeyJwk));
+  const plaintextData = encoder.encode(jsonString);
 
   const ciphertextBuffer = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
@@ -319,12 +332,13 @@ export async function encryptPrivateKeyWithRecoveryKey(
     plaintextData,
   );
 
+  const encryptedBytes = new Uint8Array(ciphertextBuffer);
+  console.log("Ciphertext byte length:", encryptedBytes.length); // Should be ~200+ bytes
+
   return {
-    encryptedPrivateKey: btoa(
-      String.fromCharCode(...new Uint8Array(ciphertextBuffer)),
-    ),
-    salt: btoa(String.fromCharCode(...salt)),
-    iv: btoa(String.fromCharCode(...iv)),
+    encryptedPrivateKey: bytesToBase64(encryptedBytes),
+    salt: bytesToBase64(salt),
+    iv: bytesToBase64(iv),
   };
 }
 
@@ -337,22 +351,38 @@ export async function decryptPrivateKeyWithRecoveryKey(
 ) {
   const { encryptedPrivateKey, salt, iv } = backupData;
 
-  const saltBytes = Uint8Array.from(atob(salt), (c) => c.charCodeAt(0));
-  const ivBytes = Uint8Array.from(atob(iv), (c) => c.charCodeAt(0));
-  const ciphertextBytes = Uint8Array.from(atob(encryptedPrivateKey), (c) =>
-    c.charCodeAt(0),
-  );
+  if (!encryptedPrivateKey || !salt || !iv) {
+    throw new Error("Backup data on the server is incomplete.");
+  }
 
+  // Convert Base64 strings to Uint8Array bytes
+  const saltBytes = base64ToBytes(salt);
+  const ivBytes = base64ToBytes(iv);
+  const ciphertextBytes = base64ToBytes(encryptedPrivateKey);
+
+  // Derive AES Key using exact salt bytes
   const aesKey = await deriveBackupKey(recoveryKey, saltBytes);
 
-  const decryptedBuffer = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: ivBytes },
-    aesKey,
-    ciphertextBytes,
-  );
+  let decryptedBuffer;
+  try {
+    decryptedBuffer = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: ivBytes },
+      aesKey,
+      ciphertextBytes,
+    );
+  } catch (err) {
+    console.error("Crypto Decryption Failed:", err);
+    throw new Error("Invalid Recovery Key phrase.");
+  }
 
   const decoder = new TextDecoder();
-  return JSON.parse(decoder.decode(decryptedBuffer));
+  const jsonString = decoder.decode(decryptedBuffer);
+
+  if (!jsonString) {
+    throw new Error("Decrypted payload was empty.");
+  }
+
+  return JSON.parse(jsonString);
 }
 
 export const cryptoMetadata = Object.freeze({
