@@ -97,7 +97,6 @@ export class MessageService {
    * Send an encrypted message.
    */
   async send(senderPublicId, data) {
-    // FIX: Pass ONLY `data` (which contains messageId, timestamp, nonce)
     await this.validateReplayProtection(data);
 
     const sender = await this.db.query.users.findFirst({
@@ -212,15 +211,15 @@ export class MessageService {
       ),
     );
 
-    const [messagesList, [{ total }]] = await Promise.all([
+    const [rawMessages, [{ total }]] = await Promise.all([
       this.db.query.messages.findMany({
         where: conversationCondition,
         offset: pagination.skip,
         limit: pagination.limit,
         orderBy: [desc(messages.createdAt)],
         with: {
-          sender: { columns: { publicId: true, username: true } },
-          receiver: { columns: { publicId: true, username: true } },
+          sender: { columns: { id: true, publicId: true, username: true } },
+          receiver: { columns: { id: true, publicId: true, username: true } },
         },
       }),
 
@@ -230,8 +229,10 @@ export class MessageService {
         .where(conversationCondition),
     ]);
 
-    return {
-      messages: messagesList.reverse().map((message) => ({
+    const formattedMessages = rawMessages
+      .slice()
+      .reverse()
+      .map((message) => ({
         id: message.id,
 
         senderPublicId: message.sender.publicId,
@@ -245,8 +246,10 @@ export class MessageService {
         status: message.status,
         type: message.type,
         createdAt: message.createdAt,
-      })),
+      }));
 
+    return {
+      messages: formattedMessages,
       pagination: buildPagination(
         pagination.page,
         pagination.limit,
@@ -259,22 +262,21 @@ export class MessageService {
    * Mark message as delivered.
    */
   async markDelivered(messageId, userPublicId) {
-    const message = await this.db.query.messages.findFirst({
-      where: eq(messages.id, messageId),
-    });
-
     const user = await this.db.query.users.findFirst({
       where: eq(users.publicId, userPublicId),
       columns: { id: true },
     });
 
-    if (!user) {
-      throw new NotFoundError("User not found.");
-    }
+    if (!user) throw new NotFoundError("User not found.");
 
-    if (!message) {
-      throw new NotFoundError("Message not found.");
-    }
+    const message = await this.db.query.messages.findFirst({
+      where: eq(messages.id, messageId),
+      with: {
+        sender: { columns: { publicId: true } },
+      },
+    });
+
+    if (!message) throw new NotFoundError("Message not found.");
 
     if (message.receiverId !== user.id) {
       throw new AuthorizationError(
@@ -291,29 +293,31 @@ export class MessageService {
       .where(eq(messages.id, messageId))
       .returning();
 
-    return updated;
+    return {
+      ...updated,
+      senderPublicId: message.sender.publicId,
+    };
   }
 
   /**
    * Mark message as read.
    */
   async markRead(messageId, userPublicId) {
-    const message = await this.db.query.messages.findFirst({
-      where: eq(messages.id, messageId),
-    });
-
     const user = await this.db.query.users.findFirst({
       where: eq(users.publicId, userPublicId),
       columns: { id: true },
     });
 
-    if (!user) {
-      throw new NotFoundError("User not found.");
-    }
+    if (!user) throw new NotFoundError("User not found.");
 
-    if (!message) {
-      throw new NotFoundError("Message not found.");
-    }
+    const message = await this.db.query.messages.findFirst({
+      where: eq(messages.id, messageId),
+      with: {
+        sender: { columns: { publicId: true } },
+      },
+    });
+
+    if (!message) throw new NotFoundError("Message not found.");
 
     if (message.receiverId !== user.id) {
       throw new AuthorizationError(
@@ -330,6 +334,9 @@ export class MessageService {
       .where(eq(messages.id, messageId))
       .returning();
 
-    return updated;
+    return {
+      ...updated,
+      senderPublicId: message.sender.publicId,
+    };
   }
 }
