@@ -276,11 +276,11 @@ export function generateRecoveryKey() {
 }
 
 /**
- * Derive an AES-256 key from a recovery key phrase using PBKDF2
+ * Derive an AES-GCM-256 key from a recovery key phrase using high-iteration PBKDF2 (OWASP recommended 600,000 rounds)
  */
 async function deriveBackupKey(recoveryKey, salt) {
   const encoder = new TextEncoder();
-  // Clean up user input: remove spaces/hyphens and capitalize
+  // Normalize user input: remove all whitespace/hyphens and convert to uppercase
   const normalizedKey = recoveryKey.trim().replace(/[\s-]/g, "").toUpperCase();
 
   const keyMaterial = await crypto.subtle.importKey(
@@ -295,7 +295,7 @@ async function deriveBackupKey(recoveryKey, salt) {
     {
       name: "PBKDF2",
       salt: salt,
-      iterations: 100000,
+      iterations: 600000,
       hash: "SHA-256",
     },
     keyMaterial,
@@ -316,13 +316,12 @@ export async function encryptPrivateKeyWithRecoveryKey(
     throw new Error("Cannot backup private key: JWK material is missing.");
   }
 
-  const salt = crypto.getRandomValues(new Uint8Array(16));
+  // Increased salt length from 16 to 32 bytes for maximum entropy
+  const salt = crypto.getRandomValues(new Uint8Array(32));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const aesKey = await deriveBackupKey(recoveryKey, salt);
 
   const jsonString = JSON.stringify(privateKeyJwk);
-  console.log("Encrypting JWK String (Length):", jsonString.length); // Should be ~180-220 characters
-
   const encoder = new TextEncoder();
   const plaintextData = encoder.encode(jsonString);
 
@@ -333,7 +332,6 @@ export async function encryptPrivateKeyWithRecoveryKey(
   );
 
   const encryptedBytes = new Uint8Array(ciphertextBuffer);
-  console.log("Ciphertext byte length:", encryptedBytes.length); // Should be ~200+ bytes
 
   return {
     encryptedPrivateKey: bytesToBase64(encryptedBytes),
@@ -355,12 +353,11 @@ export async function decryptPrivateKeyWithRecoveryKey(
     throw new Error("Backup data on the server is incomplete.");
   }
 
-  // Convert Base64 strings to Uint8Array bytes
   const saltBytes = base64ToBytes(salt);
   const ivBytes = base64ToBytes(iv);
   const ciphertextBytes = base64ToBytes(encryptedPrivateKey);
 
-  // Derive AES Key using exact salt bytes
+  // Derive AES Key using the 600,000 iterations key derivation
   const aesKey = await deriveBackupKey(recoveryKey, saltBytes);
 
   let decryptedBuffer;
