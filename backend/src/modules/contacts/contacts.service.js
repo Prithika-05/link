@@ -234,4 +234,56 @@ export class ContactsService {
 
     return acceptedPublicIds;
   }
+
+  /**
+   * Get full profiles of all ACCEPTED contacts (both incoming and outgoing)
+   */
+  async getVerifiedContacts(userPublicId) {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.publicId, userPublicId),
+      columns: { id: true },
+    });
+
+    if (!user) throw new NotFoundError("User not found.");
+
+    const acceptedRecords = await this.db.query.contactRequests.findMany({
+      where: and(
+        eq(contactRequests.status, "ACCEPTED"),
+        or(
+          eq(contactRequests.senderId, user.id),
+          eq(contactRequests.receiverId, user.id),
+        ),
+      ),
+      with: {
+        sender: {
+          columns: {
+            publicId: true,
+            username: true,
+            displayName: true,
+            email: true,
+          },
+        },
+        receiver: {
+          columns: {
+            publicId: true,
+            username: true,
+            displayName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    // Extract the OTHER user's profile from each relation
+    const verifiedContacts = acceptedRecords
+      .map((req) => {
+        if (req.senderId === user.id) {
+          return req.receiver;
+        }
+        return req.sender;
+      })
+      .filter(Boolean);
+
+    return verifiedContacts;
+  }
 }

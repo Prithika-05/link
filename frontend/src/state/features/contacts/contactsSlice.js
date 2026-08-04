@@ -23,76 +23,63 @@ export const fetchPendingRequests = createAsyncThunk(
   "contacts/fetchPendingRequests",
   async (_, { getState, rejectWithValue }) => {
     try {
-      const [{ data: requestsRes }, { data: acceptedRes }] = await Promise.all([
+      const [{ data: requestsRes }, { data: verifiedRes }] = await Promise.all([
         apiClient.get("/contacts/requests/pending"),
-        apiClient.get("/contacts/accepted"),
+        apiClient.get("/contacts/verified"),
       ]);
 
       const incoming = requestsRes.data.incoming || [];
       const outgoing = requestsRes.data.outgoing || [];
-      const validAcceptedPublicIds = new Set(acceptedRes.data || []);
+      const backendVerifiedContacts = verifiedRes.data || [];
 
       const currentUserId = getState().auth.user?.publicId;
       const existingContacts = getState().contacts.items || [];
+      const existingMap = new Map(existingContacts.map((c) => [c.publicId, c]));
 
-      let contactsChanged = false;
+      const fullVerifiedContacts = [];
 
-      let updatedContacts = existingContacts.map((contact) => {
-        const isStillAccepted = validAcceptedPublicIds.has(contact.publicId);
-        if (contact.isAccepted !== isStillAccepted) {
-          contactsChanged = true;
-          return { ...contact, isAccepted: isStillAccepted };
-        }
-        return contact;
-      });
+      for (const userObj of backendVerifiedContacts) {
+        if (!userObj?.publicId) continue;
 
-      const acceptedOutgoing = outgoing.filter(
-        (req) => req.status === "ACCEPTED",
-      );
-
-      for (const req of acceptedOutgoing) {
-        const receiver = req.receiver;
-        if (!receiver?.publicId) continue;
-
-        const existingIndex = updatedContacts.findIndex(
-          (item) => item.publicId === receiver.publicId,
-        );
-
-        if (
-          existingIndex === -1 &&
-          validAcceptedPublicIds.has(receiver.publicId)
-        ) {
-          const publicKeyObj = await keyService
-            .getPublicKey(receiver.publicId)
-            .catch(() => null);
-
-          const displayName =
-            receiver.displayName ||
-            receiver.username ||
-            fallbackContactName(receiver.publicId);
-
-          const newContact = {
-            publicId: receiver.publicId,
-            username: receiver.username,
-            email: receiver.email || "",
-            name: displayName,
-            initials: getInitials(displayName),
-            color: colorFromId(receiver.publicId),
-            fingerprint: publicKeyObj?.fingerprint || publicKeyObj?.key || "",
-            algorithm: publicKeyObj?.algorithm || "ECDH-P256",
-            publicKey: publicKeyObj?.key || null,
-            online: false,
+        // If contact already exists in local storage, keep it
+        if (existingMap.has(userObj.publicId)) {
+          fullVerifiedContacts.push({
+            ...existingMap.get(userObj.publicId),
             isAccepted: true,
-            addedAt: new Date().toISOString(),
-          };
-
-          updatedContacts.unshift(newContact);
-          contactsChanged = true;
+          });
+          continue;
         }
+
+        // Device is NEW: Fetch public key for E2EE and build contact object
+        const publicKeyObj = await keyService
+          .getPublicKey(userObj.publicId)
+          .catch(() => null);
+
+        const displayName =
+          userObj.displayName ||
+          userObj.username ||
+          fallbackContactName(userObj.publicId);
+
+        const newContact = {
+          publicId: userObj.publicId,
+          username: userObj.username,
+          email: userObj.email || "",
+          name: displayName,
+          initials: getInitials(displayName),
+          color: colorFromId(userObj.publicId),
+          fingerprint: publicKeyObj?.fingerprint || publicKeyObj?.key || "",
+          algorithm: publicKeyObj?.algorithm || "ECDH-P256",
+          publicKey: publicKeyObj?.key || null,
+          online: false,
+          isAccepted: true,
+          addedAt: new Date().toISOString(),
+        };
+
+        fullVerifiedContacts.push(newContact);
       }
 
-      if (contactsChanged && currentUserId) {
-        saveStoredContacts(currentUserId, updatedContacts);
+      if (currentUserId) {
+        saveStoredContacts(currentUserId, fullVerifiedContacts);
       }
 
       const pendingOutgoing = outgoing.filter(
@@ -102,7 +89,7 @@ export const fetchPendingRequests = createAsyncThunk(
       return {
         incoming,
         outgoing: pendingOutgoing,
-        verifiedContacts: updatedContacts,
+        verifiedContacts: fullVerifiedContacts,
       };
     } catch (error) {
       return rejectWithValue(

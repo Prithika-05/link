@@ -31,4 +31,10 @@ export default async function contactsRoutes(fastify) {
     { preHandler: [authenticate] },
     controller.getAcceptedContacts,
   );
+
+  fastify.get(
+    "/verified",
+    { preHandler: [authenticate] },
+    controller.getVerifiedContacts,
+  );
 }

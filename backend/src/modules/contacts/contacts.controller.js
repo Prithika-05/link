@@ -119,4 +119,11 @@ export class ContactsController {
       "Accepted contact IDs retrieved.",
     );
   };
+
+  getVerifiedContacts = async (request, reply) => {
+    const contacts = await this.contactsService.getVerifiedContacts(
+      request.user.publicId,
+    );
+    return successResponse(reply, contacts, "Verified contacts retrieved.");
+  };
 }
