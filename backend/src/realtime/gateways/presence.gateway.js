@@ -9,23 +9,23 @@ const pendingDisconnects = new Map();
 
 export function handleUserPresence(socket, io, fastify) {
   const userId = socket.data.user.sub;
-  const publicId = socket.data.user.publicId;
+  const publicId = socket.data.user.publicId || socket.data.user.sub; // Ensure fallback
 
   // 1. Cancel any pending "OFFLINE" timer if the user reconnected quickly
-  if (pendingDisconnects.has(userId)) {
-    clearTimeout(pendingDisconnects.get(userId));
-    pendingDisconnects.delete(userId);
+  if (pendingDisconnects.has(publicId)) {
+    clearTimeout(pendingDisconnects.get(publicId));
+    pendingDisconnects.delete(publicId);
     fastify.log.debug(
-      { userId },
+      { userId, publicId },
       "Pending offline timer cancelled (user reconnected).",
     );
   }
 
-  // 2. Add connection
-  connectionManager.add(userId, socket);
+  // 2. Add connection indexed by publicId
+  connectionManager.add(publicId, socket);
 
   // 3. Set ONLINE in DB if first socket
-  if (connectionManager.getSocketCount(userId) === 1) {
+  if (connectionManager.getSocketCount(publicId) === 1) {
     fastify.db
       .update(users)
       .set({ status: USER_STATUS.ONLINE })
@@ -41,13 +41,14 @@ export function handleUserPresence(socket, io, fastify) {
 
   // 4. Handle Disconnect with a Grace Period
   socket.on("disconnect", (reason) => {
-    connectionManager.remove(userId, socket);
+    // Remove connection using publicId
+    connectionManager.remove(publicId, socket);
 
     // If user has no sockets left, wait 4 seconds before marking them offline in DB
-    if (!connectionManager.isConnected(userId)) {
+    if (!connectionManager.isConnected(publicId)) {
       const timer = setTimeout(async () => {
         // Re-check if they are still disconnected after 4 seconds
-        if (!connectionManager.isConnected(userId)) {
+        if (!connectionManager.isConnected(publicId)) {
           try {
             await fastify.db
               .update(users)
@@ -65,12 +66,12 @@ export function handleUserPresence(socket, io, fastify) {
               "Failed setting user to OFFLINE.",
             );
           } finally {
-            pendingDisconnects.delete(userId);
+            pendingDisconnects.delete(publicId);
           }
         }
       }, 4000); // 4-second grace period for page refreshes / tab switches
 
-      pendingDisconnects.set(userId, timer);
+      pendingDisconnects.set(publicId, timer);
     }
   });
 }

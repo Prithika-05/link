@@ -1,5 +1,3 @@
-// src/state/features/contacts/contactsSlice.js
-
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { getApiErrorMessage } from "../../../api/apiError.js";
 import { apiClient } from "../../../api/httpClient.js";
@@ -16,18 +14,10 @@ import {
 } from "../../../utils/contact.js";
 import { clearConversation } from "../messages/messagesSlice.js";
 
-/**
- * Load local contacts from browser storage
- */
 export const loadContacts = createAsyncThunk(
   "contacts/loadContacts",
   async (ownerId) => loadStoredContacts(ownerId),
 );
-
-/**
- * Fetch incoming & outgoing contact requests from the backend.
- * Automatically promotes accepted outgoing requests to verified contacts.
- */
 
 export const fetchPendingRequests = createAsyncThunk(
   "contacts/fetchPendingRequests",
@@ -45,7 +35,6 @@ export const fetchPendingRequests = createAsyncThunk(
       const currentUserId = getState().auth.user?.publicId;
       const existingContacts = getState().contacts.items || [];
 
-      // Flag contacts that are still active vs disconnected
       let contactsChanged = false;
 
       let updatedContacts = existingContacts.map((contact) => {
@@ -57,7 +46,6 @@ export const fetchPendingRequests = createAsyncThunk(
         return contact;
       });
 
-      // Promote newly accepted outgoing requests
       const acceptedOutgoing = outgoing.filter(
         (req) => req.status === "ACCEPTED",
       );
@@ -123,9 +111,7 @@ export const fetchPendingRequests = createAsyncThunk(
     }
   },
 );
-/**
- * Send a new contact request to a user by their public ID
- */
+
 export const sendContactRequest = createAsyncThunk(
   "contacts/sendContactRequest",
   async (targetUser, { rejectWithValue }) => {
@@ -147,16 +133,13 @@ export const sendContactRequest = createAsyncThunk(
   },
 );
 
-/**
- * Respond (ACCEPT or REJECT) to an incoming contact request
- */
 export const respondToContactRequest = createAsyncThunk(
   "contacts/respondToContactRequest",
   async ({ requestId, action, sender }, { getState, rejectWithValue }) => {
     try {
       await apiClient.post("/contacts/requests/respond", {
         requestId,
-        action, // "ACCEPTED" | "REJECTED"
+        action,
       });
 
       if (action === "ACCEPTED" && sender) {
@@ -205,8 +188,47 @@ export const respondToContactRequest = createAsyncThunk(
 );
 
 /**
- * Ensure an incoming contact is added locally if already accepted or active
+ * Handle real-time event when someone accepts your contact request
  */
+export const handleRealtimeContactAccepted = createAsyncThunk(
+  "contacts/handleRealtimeContactAccepted",
+  async ({ requestId, contact }, { getState }) => {
+    const publicKeyObj = await keyService
+      .getPublicKey(contact.publicId)
+      .catch(() => null);
+
+    const displayName =
+      contact.displayName ||
+      contact.username ||
+      fallbackContactName(contact.publicId);
+
+    const newContact = {
+      publicId: contact.publicId,
+      username: contact.username,
+      email: contact.email || "",
+      name: displayName,
+      initials: getInitials(displayName),
+      color: colorFromId(contact.publicId),
+      fingerprint: publicKeyObj?.fingerprint || publicKeyObj?.key || "",
+      algorithm: publicKeyObj?.algorithm || "ECDH-P256",
+      publicKey: publicKeyObj?.key || null,
+      online: true,
+      addedAt: new Date().toISOString(),
+    };
+
+    const currentUserId = getState().auth.user?.publicId;
+    const existing = getState().contacts.items || [];
+    const updated = [
+      newContact,
+      ...existing.filter((item) => item.publicId !== contact.publicId),
+    ];
+
+    saveStoredContacts(currentUserId, updated);
+
+    return { requestId, contact: newContact };
+  },
+);
+
 export const ensureIncomingContact = createAsyncThunk(
   "contacts/ensureIncomingContact",
   async (publicId, { getState }) => {
@@ -254,9 +276,6 @@ export const ensureIncomingContact = createAsyncThunk(
   },
 );
 
-/**
- * Legacy startConversation thunk
- */
 export const startConversation = createAsyncThunk(
   "contacts/startConversation",
   async (targetUser, { getState, rejectWithValue }) => {
@@ -317,12 +336,6 @@ export const startConversation = createAsyncThunk(
   },
 );
 
-/**
- * Remove contact from Redux & LocalStorage
- */
-/**
- * Remove contact from Database, Redux, & LocalStorage
- */
 export const removeContact = createAsyncThunk(
   "contacts/removeContact",
   async (publicId, { dispatch, getState, rejectWithValue }) => {
@@ -348,8 +361,8 @@ export const removeContact = createAsyncThunk(
 
 const initialState = {
   items: [],
-  pendingRequests: [], // Incoming requests
-  sentRequests: [], // Outgoing requests
+  pendingRequests: [],
+  sentRequests: [],
   status: "idle",
   error: null,
   loaded: false,
@@ -368,13 +381,23 @@ const contactsSlice = createSlice({
       }
     },
 
+    // Real-time socket reducer: New incoming contact request received
     incomingRequestReceived(state, action) {
-      const exists = state.pendingRequests.some(
-        (r) => r.id === action.payload.requestId,
-      );
+      const { requestId, sender } = action.payload;
+      const exists = state.pendingRequests.some((r) => r.id === requestId);
       if (!exists) {
-        state.pendingRequests.unshift(action.payload);
+        state.pendingRequests.unshift({
+          id: requestId,
+          sender,
+          createdAt: new Date().toISOString(),
+        });
       }
+    },
+
+    // Real-time socket reducer: Sent request rejected by receiver
+    outgoingRequestRejected(state, action) {
+      const { requestId } = action.payload;
+      state.sentRequests = state.sentRequests.filter((r) => r.id !== requestId);
     },
 
     clearContactsError(state) {
@@ -432,6 +455,20 @@ const contactsSlice = createSlice({
           }
         }
       })
+      .addCase(handleRealtimeContactAccepted.fulfilled, (state, action) => {
+        const { requestId, contact } = action.payload;
+        state.sentRequests = state.sentRequests.filter(
+          (r) => r.id !== requestId,
+        );
+        const index = state.items.findIndex(
+          (item) => item.publicId === contact.publicId,
+        );
+        if (index >= 0) {
+          state.items[index] = contact;
+        } else {
+          state.items.unshift(contact);
+        }
+      })
       .addCase(ensureIncomingContact.fulfilled, (state, action) => {
         const exists = state.items.some(
           (contact) => contact.publicId === action.payload.publicId,
@@ -464,6 +501,7 @@ const contactsSlice = createSlice({
 export const {
   setContactPresence,
   incomingRequestReceived,
+  outgoingRequestRejected,
   clearContactsError,
   resetContacts,
 } = contactsSlice.actions;

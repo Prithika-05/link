@@ -98,6 +98,9 @@ export class ContactsService {
         eq(contactRequests.id, requestId),
         eq(contactRequests.receiverId, receiver.id),
       ),
+      with: {
+        sender: true,
+      },
     });
 
     if (!request) throw new NotFoundError("Contact request not found.");
@@ -108,7 +111,11 @@ export class ContactsService {
       .where(eq(contactRequests.id, requestId))
       .returning();
 
-    return updated;
+    return {
+      updated,
+      senderUser: request.sender,
+      receiverUser: receiver,
+    };
   }
 
   async getPendingRequests(userPublicId) {

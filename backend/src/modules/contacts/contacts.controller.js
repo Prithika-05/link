@@ -1,7 +1,7 @@
-// src/modules/contacts/contacts.controller.js
-
 import { ContactsService } from "./contacts.service.js";
 import { successResponse } from "../../utils/response.js";
+// 1. Directly import the singleton instance
+import { connectionManager } from "../../realtime/connection.manager.js";
 
 export class ContactsController {
   constructor(fastify) {
@@ -16,15 +16,9 @@ export class ContactsController {
       receiverPublicId,
     );
 
-    const connectionManager =
-      this.fastify.connectionManager || this.fastify.io?.connectionManager;
-
-    if (
-      connectionManager &&
-      connectionManager.isConnected(result.receiverUser.id)
-    ) {
+    if (connectionManager.isConnected(result.receiverUser.publicId)) {
       connectionManager.emit(
-        result.receiverUser.id,
+        result.receiverUser.publicId,
         "contact_request:received",
         {
           requestId: result.request.id,
@@ -32,6 +26,7 @@ export class ContactsController {
             publicId: result.senderUser.publicId,
             username: result.senderUser.username,
             displayName: result.senderUser.displayName,
+            email: result.senderUser.email,
           },
         },
       );
@@ -52,9 +47,40 @@ export class ContactsController {
       action,
     );
 
+    // 3. Match publicId across both connection check and emit payload
+    if (
+      result.senderUser &&
+      connectionManager.isConnected(result.senderUser.publicId)
+    ) {
+      if (action === "ACCEPTED") {
+        connectionManager.emit(
+          result.senderUser.publicId,
+          "contact_request:accepted",
+          {
+            requestId: result.updated.id,
+            contact: {
+              publicId: result.receiverUser.publicId,
+              username: result.receiverUser.username,
+              displayName: result.receiverUser.displayName,
+              email: result.receiverUser.email,
+            },
+          },
+        );
+      } else if (action === "REJECTED") {
+        connectionManager.emit(
+          result.senderUser.publicId,
+          "contact_request:rejected",
+          {
+            requestId: result.updated.id,
+            receiverPublicId: result.receiverUser.publicId,
+          },
+        );
+      }
+    }
+
     return successResponse(
       reply,
-      result,
+      result.updated,
       `Contact request ${action.toLowerCase()}.`,
     );
   };

@@ -12,7 +12,7 @@ export function registerMessageGateway(io, fastify) {
     socket.on(EVENTS.MESSAGE_SEND, async (payload, callback) => {
       try {
         const senderPublicId = socket.data.user.publicId;
-        const targetPublicId = payload.receiverId || payload.receiverPublicId;
+        const targetPublicId = payload.receiverPublicId;
 
         if (!targetPublicId) {
           throw new Error("Receiver ID is missing.");
@@ -36,14 +36,15 @@ export function registerMessageGateway(io, fastify) {
           });
         }
 
-        // Deliver to recipient via socket if online
+        // Change this section in registerMessageGateway:
+
         const receiver = await fastify.db.query.users.findFirst({
           where: eq(users.publicId, targetPublicId),
           columns: { id: true, publicId: true },
         });
 
-        if (receiver && connectionManager.isConnected(receiver.id)) {
-          connectionManager.emit(receiver.id, EVENTS.MESSAGE_RECEIVE, {
+        if (receiver && connectionManager.isConnected(receiver.publicId)) {
+          connectionManager.emit(receiver.publicId, EVENTS.MESSAGE_RECEIVE, {
             ...message,
             senderPublicId,
             receiverPublicId: receiver.publicId,

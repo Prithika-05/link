@@ -19,7 +19,7 @@ export function registerReceiptHandlers(socket, fastify) {
         socket.data.user.publicId,
       );
 
-      connectionManager.emit(message.senderId, EVENTS.MESSAGE_DELIVERED, {
+      connectionManager.emit(message.senderPublicId, EVENTS.MESSAGE_DELIVERED, {
         messageId: message.id,
         status: message.status,
         receiverPublicId: socket.data.user.publicId,
@@ -71,7 +71,7 @@ export function registerReceiptHandlers(socket, fastify) {
         socket.data.user.publicId,
       );
 
-      connectionManager.emit(message.senderId, EVENTS.MESSAGE_READ, {
+      connectionManager.emit(message.senderPublicId, EVENTS.MESSAGE_READ, {
         messageId: message.id,
         status: message.status,
         receiverPublicId: socket.data.user.publicId,

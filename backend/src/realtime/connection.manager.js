@@ -9,10 +9,7 @@ class ConnectionManager {
     if (!this.connections.has(userId)) {
       this.connections.set(userId, new Set());
     }
-
-    this.connections
-      .get(userId)
-      .add(socket);
+    this.connections.get(userId).add(socket);
   }
 
   /**
@@ -26,8 +23,7 @@ class ConnectionManager {
    * Remove a socket connection.
    */
   removeConnection(userId, socket) {
-    const sockets =
-      this.connections.get(userId);
+    const sockets = this.connections.get(userId);
 
     if (!sockets) {
       return;
@@ -44,20 +40,14 @@ class ConnectionManager {
    * Backward compatibility.
    */
   remove(userId, socket) {
-    this.removeConnection(
-      userId,
-      socket
-    );
+    this.removeConnection(userId, socket);
   }
 
   /**
    * Get all sockets for a user.
    */
   getSockets(userId) {
-    return (
-      this.connections.get(userId) ??
-      new Set()
-    );
+    return this.connections.get(userId) ?? new Set();
   }
 
   /**
@@ -92,18 +82,14 @@ class ConnectionManager {
    * Online user IDs.
    */
   getOnlineUsers() {
-    return [
-      ...this.connections.keys(),
-    ];
+    return [...this.connections.keys()];
   }
 
   /**
    * Emit to one user.
    */
   emit(userId, event, payload) {
-    for (const socket of this.getSockets(
-      userId
-    )) {
+    for (const socket of this.getSockets(userId)) {
       try {
         socket.emit(event, payload);
       } catch {
@@ -131,8 +117,7 @@ class ConnectionManager {
    * Disconnect every socket for a user.
    */
   disconnectUser(userId) {
-    const sockets =
-      this.getSockets(userId);
+    const sockets = this.getSockets(userId);
 
     for (const socket of sockets) {
       socket.disconnect(true);
@@ -149,5 +134,5 @@ class ConnectionManager {
   }
 }
 
-export const connectionManager =
-  new ConnectionManager();
+export const connectionManager = new ConnectionManager();
+

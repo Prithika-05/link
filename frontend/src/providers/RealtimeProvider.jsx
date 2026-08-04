@@ -3,6 +3,9 @@ import { useDispatch, useSelector } from "react-redux";
 import { REALTIME_EVENTS } from "../constants/realtimeEvents";
 import {
   ensureIncomingContact,
+  handleRealtimeContactAccepted,
+  incomingRequestReceived,
+  outgoingRequestRejected,
   setContactPresence,
 } from "../state/features/contacts/contactsSlice";
 import { decryptRealtimeMessage } from "../state/features/messages/messagesSlice";
@@ -40,7 +43,41 @@ export default function RealtimeProvider({ children }) {
       dispatch(setContactPresence({ publicId: targetId, online: false }));
     };
 
-    // src/providers/RealtimeProvider.jsx
+    // Real-Time Contact Request Handlers
+    const onContactRequestReceived = (data) => {
+      console.log(
+        "[RealtimeProvider] Received contact_request:received:",
+        data,
+      );
+
+      dispatch(incomingRequestReceived(data));
+
+      if (
+        desktopNotifications &&
+        window.Notification?.permission === "granted"
+      ) {
+        new window.Notification("LinkChat", {
+          body: `New contact request from @${data.sender?.username || "user"}`,
+        });
+      }
+    };
+
+    const onContactRequestAccepted = (data) => {
+      dispatch(handleRealtimeContactAccepted(data));
+
+      if (
+        desktopNotifications &&
+        window.Notification?.permission === "granted"
+      ) {
+        new window.Notification("LinkChat", {
+          body: `@${data.contact?.username || "User"} accepted your contact request!`,
+        });
+      }
+    };
+
+    const onContactRequestRejected = (data) => {
+      dispatch(outgoingRequestRejected(data));
+    };
 
     const onMessage = async (message) => {
       try {
@@ -73,6 +110,20 @@ export default function RealtimeProvider({ children }) {
     socket.on(REALTIME_EVENTS.userOffline, onUserOffline);
     socket.on(REALTIME_EVENTS.messageReceive, onMessage);
 
+    // Contact Socket Events
+    socket.on(
+      REALTIME_EVENTS.contactRequestReceived || "contact_request:received",
+      onContactRequestReceived,
+    );
+    socket.on(
+      REALTIME_EVENTS.contactRequestAccepted || "contact_request:accepted",
+      onContactRequestAccepted,
+    );
+    socket.on(
+      REALTIME_EVENTS.contactRequestRejected || "contact_request:rejected",
+      onContactRequestRejected,
+    );
+
     if (socket.connected) onConnect();
 
     return () => {
@@ -82,6 +133,20 @@ export default function RealtimeProvider({ children }) {
       socket.off(REALTIME_EVENTS.userOnline, onUserOnline);
       socket.off(REALTIME_EVENTS.userOffline, onUserOffline);
       socket.off(REALTIME_EVENTS.messageReceive, onMessage);
+
+      socket.off(
+        REALTIME_EVENTS.contactRequestReceived || "contact_request:received",
+        onContactRequestReceived,
+      );
+      socket.off(
+        REALTIME_EVENTS.contactRequestAccepted || "contact_request:accepted",
+        onContactRequestAccepted,
+      );
+      socket.off(
+        REALTIME_EVENTS.contactRequestRejected || "contact_request:rejected",
+        onContactRequestRejected,
+      );
+
       socketService.disconnect();
     };
   }, [desktopNotifications, dispatch, token, user]);
