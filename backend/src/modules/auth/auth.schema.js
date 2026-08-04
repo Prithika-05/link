@@ -280,50 +280,30 @@ export const refreshSchema = {
   },
 };
 
-/* Logout */
 export const logoutSchema = {
   summary: "Logout the authenticated user",
-
   tags: ["Authentication"],
-
   headers: {
     type: "object",
-
     required: ["authorization"],
-
     properties: {
-      authorization: {
-        type: "string",
-      },
+      authorization: { type: "string" },
     },
   },
-
   body: {
     type: "object",
-
     additionalProperties: false,
-
-    required: ["refreshToken"],
-
     properties: {
-      refreshToken: {
-        type: "string",
-      },
+      refreshToken: { type: "string" },
     },
   },
-
   response: {
     200: {
       type: "object",
-
       required: ["success", "message", "data"],
-
       properties: {
         ...successSchema,
-
-        data: {
-          type: "null",
-        },
+        data: { type: "null" },
       },
     },
   },
