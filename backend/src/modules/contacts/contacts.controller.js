@@ -99,6 +99,12 @@ export class ContactsController {
       targetPublicId,
     );
 
+    if (connectionManager.isConnected(targetPublicId)) {
+      connectionManager.emit(targetPublicId, "contact_request:removed", {
+        removerPublicId: request.user.publicId,
+      });
+    }
+
     return successResponse(reply, null, result.message);
   };
 

@@ -404,6 +404,16 @@ const contactsSlice = createSlice({
       state.error = null;
     },
 
+    contactRemovedByPeer(state, action) {
+      const { removerPublicId } = action.payload;
+      const contact = state.items.find(
+        (item) => item.publicId === removerPublicId,
+      );
+      if (contact) {
+        contact.isAccepted = false;
+      }
+    },
+
     resetContacts(state) {
       state.items = [];
       state.pendingRequests = [];
@@ -502,6 +512,7 @@ export const {
   setContactPresence,
   incomingRequestReceived,
   outgoingRequestRejected,
+  contactRemovedByPeer,
   clearContactsError,
   resetContacts,
 } = contactsSlice.actions;

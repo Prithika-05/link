@@ -7,6 +7,7 @@ import {
   incomingRequestReceived,
   outgoingRequestRejected,
   setContactPresence,
+  contactRemovedByPeer,
 } from "../state/features/contacts/contactsSlice";
 import { decryptRealtimeMessage } from "../state/features/messages/messagesSlice";
 import { setSocketStatus } from "../state/features/system/systemSlice";
@@ -79,6 +80,10 @@ export default function RealtimeProvider({ children }) {
       dispatch(outgoingRequestRejected(data));
     };
 
+    const onContactRequestRemoved = (data) => {
+      dispatch(contactRemovedByPeer(data));
+    };
+
     const onMessage = async (message) => {
       try {
         const senderPublicId = message.senderPublicId;
@@ -123,6 +128,10 @@ export default function RealtimeProvider({ children }) {
       REALTIME_EVENTS.contactRequestRejected || "contact_request:rejected",
       onContactRequestRejected,
     );
+    socket.on(
+      REALTIME_EVENTS.contactRequestRemoved || "contact_request:removed",
+      onContactRequestRemoved,
+    );
 
     if (socket.connected) onConnect();
 
@@ -145,6 +154,10 @@ export default function RealtimeProvider({ children }) {
       socket.off(
         REALTIME_EVENTS.contactRequestRejected || "contact_request:rejected",
         onContactRequestRejected,
+      );
+      socket.off(
+        REALTIME_EVENTS.contactRequestRemoved || "contact_request:removed",
+        onContactRequestRemoved,
       );
 
       socketService.disconnect();

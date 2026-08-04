@@ -7,4 +7,5 @@ export const REALTIME_EVENTS = Object.freeze({
   contactRequestReceived: "contact_request:received",
   contactRequestAccepted: "contact_request:accepted",
   contactRequestRejected: "contact_request:rejected",
+  contactRequestRemoved: "contact_request:removed",
 });
