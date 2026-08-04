@@ -25,7 +25,6 @@ export default function KeySetupPage() {
   const [backupExists, setBackupExists] = useState(false);
   const [backupData, setBackupData] = useState(null);
 
-  // UI Tabs: 'restore' | 'create'
   const [mode, setMode] = useState("restore");
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -34,7 +33,6 @@ export default function KeySetupPage() {
   useEffect(() => {
     if (!user?.publicId) return;
 
-    // Check if key already exists in local IndexedDB
     getStoredKeyPair(user.publicId)
       .then((record) => {
         if (record?.fingerprint) {
@@ -43,7 +41,6 @@ export default function KeySetupPage() {
       })
       .catch(() => setFingerprint(""));
 
-    // Check if an encrypted key backup exists on the backend
     keyService
       .getKeyBackup()
       .then((data) => {
@@ -62,9 +59,6 @@ export default function KeySetupPage() {
       });
   }, [user?.publicId]);
 
-  // ==========================================
-  // FLOW 1: RESTORE KEYS VIA RECOVERY KEY
-  // ==========================================
   const handleRestoreKeys = async (e) => {
     e.preventDefault();
     if (!inputRecoveryKey.trim()) {
@@ -80,13 +74,11 @@ export default function KeySetupPage() {
         throw new Error("No key backup found on server.");
       }
 
-      // 1. Decrypt Private Key JWK using Recovery Key
       const privateKeyJwk = await decryptPrivateKeyWithRecoveryKey(
         backupData,
         inputRecoveryKey.trim(),
       );
 
-      // 2. Import Private Key for ECDH
       const privateKey = await window.crypto.subtle.importKey(
         "jwk",
         privateKeyJwk,
@@ -95,10 +87,8 @@ export default function KeySetupPage() {
         ["deriveBits"],
       );
 
-      // 3. Fetch server public key to reconstruct full keypair record
       const serverKeyData = await keyService.getPublicKey(user.publicId);
 
-      // 4. Save restored KeyPair into IndexedDB
       const restoredRecord = {
         publicId: user.publicId,
         algorithm: "ECDH-P256",
@@ -111,25 +101,21 @@ export default function KeySetupPage() {
       await storeKeyPair(restoredRecord);
       setFingerprint(restoredRecord.fingerprint);
 
-      // Navigate to dashboard after successful restoration
       navigate("/dashboard");
     } catch (restoreError) {
       console.error(restoreError);
       setError(
-        "Invalid Recovery Key or restoration failed. Please check your key phrase.",
+        "Invalid Recovery Key. Please double check your phrase and try again.",
       );
     } finally {
       setBusy(false);
     }
   };
 
-  // ==========================================
-  // FLOW 2: CREATE NEW KEYS (OVERWRITE DATA)
-  // ==========================================
   const createKeys = async () => {
     if (backupExists || fingerprint) {
       const confirmed = window.confirm(
-        "WARNING: Creating a new security key without your Recovery Key will prevent you from reading past encrypted messages. Are you sure you want to reset?",
+        "WARNING: Generating a new key without your old Recovery Key will make previous messages permanently unreadable. Continue?",
       );
       if (!confirmed) return;
     }
@@ -143,21 +129,14 @@ export default function KeySetupPage() {
         throw new Error("User publicId is missing.");
       }
 
-      // 1. Generate local ECDH Key Pair & Material
       const material = await createKeyPairMaterial(user.publicId);
-
-      // 2. Generate 24-character human-readable Recovery Key
       const generatedRecoveryKey = generateRecoveryKey();
 
-      console.log("JWK to encrypt:", material.privateKeyJwk);
-
-      // 3. Encrypt Private Key JWK with Recovery Key
       const backupPayload = await encryptPrivateKeyWithRecoveryKey(
         material.privateKeyJwk,
         generatedRecoveryKey,
       );
 
-      // 4. Upload Public Key & Backup to backend
       await Promise.all([
         keyService.uploadPublicKey({
           algorithm: material.algorithm,
@@ -170,7 +149,6 @@ export default function KeySetupPage() {
         }),
       ]);
 
-      // 5. Save keypair locally in IndexedDB
       await storeKeyPair(material);
 
       setFingerprint(material.fingerprint);
@@ -192,7 +170,7 @@ export default function KeySetupPage() {
 
   const downloadRecoveryKeyTxt = () => {
     if (!recoveryKey) return;
-    const fileContent = `====================================================\nLINKCHAT - EMERGENCY RECOVERY KEY\n====================================================\nUser ID     : ${user?.publicId || "N/A"}\nUsername    : ${user?.username || "N/A"}\nRecovery Key: ${recoveryKey}\n\nKEEP THIS FILE SAFE! Required to decrypt your chat history if you switch devices.\n====================================================`;
+    const fileContent = `====================================================\nLINKCHAT - EMERGENCY RECOVERY KEY\n====================================================\nUser ID     : ${user?.publicId || "N/A"}\nUsername    : ${user?.username || "N/A"}\nRecovery Key: ${recoveryKey}\n\nKEEP THIS FILE SAFE! If you lose this key, your encrypted chat history CANNOT be recovered.\n====================================================`;
 
     const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -203,6 +181,14 @@ export default function KeySetupPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handleFinishSetup = () => {
+    // Automatically trigger file download if user just created a new key
+    if (recoveryKey) {
+      downloadRecoveryKeyTxt();
+    }
+    navigate("/dashboard");
   };
 
   return (
@@ -226,23 +212,22 @@ export default function KeySetupPage() {
           </span>
           <h1 className="text-2xl font-bold">
             {fingerprint
-              ? "Your device key is ready"
+              ? "Your Security Key is Ready"
               : backupExists && mode === "restore"
-                ? "Restore your security key"
-                : "Set up your security key"}
+                ? "Restore Your Encryption Key"
+                : "Set Up Your Encryption Key"}
           </h1>
           <p className="text-sm text-muted mt-1">
             {fingerprint
-              ? "Your keys and encrypted recovery backup are configured on this device."
+              ? "Your ECDH keypair is active. Save your Recovery Key before proceeding."
               : backupExists && mode === "restore"
-                ? "Enter your Recovery Key to restore your encrypted chat history on this device."
+                ? "Enter your Recovery Key to unlock your encrypted messages on this device."
                 : "LinkChat needs an ECDH P-256 key pair to encrypt and decrypt messages."}
           </p>
         </div>
 
         {error && <Alert className="mb-4">{error}</Alert>}
 
-        {/* Mode Toggle Tabs (Restore vs. Reset/New) */}
         {!fingerprint && backupExists && (
           <div className="flex bg-surface-hover rounded-lg p-1 mb-6 border border-border">
             <button
@@ -257,7 +242,7 @@ export default function KeySetupPage() {
                   : "text-muted hover:text-foreground"
               }`}
             >
-              Restore Key
+              Restore Existing Key
             </button>
             <button
               type="button"
@@ -276,9 +261,7 @@ export default function KeySetupPage() {
           </div>
         )}
 
-        {/* ========================================== */}
-        {/* VIEW A: RESTORE FORM                       */}
-        {/* ========================================== */}
+        {/* RESTORE FORM */}
         {!fingerprint && mode === "restore" && backupExists && (
           <form onSubmit={handleRestoreKeys} className="space-y-4">
             <div className="space-y-2">
@@ -293,51 +276,16 @@ export default function KeySetupPage() {
                 className="w-full p-3 font-mono tracking-wider text-center text-sm rounded-lg border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-primary"
                 disabled={busy}
               />
-              <small className="text-xs text-muted block text-left">
-                This phrase was generated when you first set up LinkChat.
-              </small>
             </div>
-
             <Button type="submit" icon="key" loading={busy} className="w-full">
               Restore Key & Unlock Chats
             </Button>
           </form>
         )}
 
-        {/* ========================================== */}
-        {/* VIEW B: CREATE NEW KEYS / OVERWRITE        */}
-        {/* ========================================== */}
+        {/* CREATE KEY VIEW */}
         {!fingerprint && (mode === "create" || !backupExists) && (
           <div className="space-y-4">
-            <div className="key-explainer space-y-2 text-left">
-              <div className="flex items-start gap-3 p-3 bg-surface border border-border rounded-lg">
-                <Icon name="key" size={20} className="mt-1" />
-                <span>
-                  <strong className="block text-sm">Private Key</strong>
-                  <small className="text-xs text-muted">
-                    Stored locally in IndexedDB & encrypted with Recovery Key.
-                  </small>
-                </span>
-              </div>
-              <div className="flex items-start gap-3 p-3 bg-surface border border-border rounded-lg">
-                <Icon name="shield" size={20} className="mt-1" />
-                <span>
-                  <strong className="block text-sm">Public Key</strong>
-                  <small className="text-xs text-muted">
-                    Shared with contacts to encrypt messages sent to you.
-                  </small>
-                </span>
-              </div>
-            </div>
-
-            {backupExists && (
-              <p className="text-xs text-amber-500 font-medium bg-amber-500/10 p-3 rounded-lg border border-amber-500/20 text-left">
-                ⚠️ Warning: Creating a new key will overwrite your existing
-                public key on the server. Old messages will no longer be
-                readable.
-              </p>
-            )}
-
             <Button
               onClick={createKeys}
               icon="key"
@@ -345,14 +293,12 @@ export default function KeySetupPage() {
               className="w-full"
               variant={backupExists ? "secondary" : "primary"}
             >
-              Generate New Key & Recovery Phrase
+              Generate Key & Recovery Phrase
             </Button>
           </div>
         )}
 
-        {/* ========================================== */}
-        {/* VIEW C: KEY READY & RECOVERY DISPLAY       */}
-        {/* ========================================== */}
+        {/* DISPLAY GENERATED RECOVERY KEY & WARNING */}
         {fingerprint && (
           <div className="key-ready space-y-4 mt-4">
             <div className="fingerprint-box p-3 bg-surface rounded-lg border border-border text-center">
@@ -366,15 +312,20 @@ export default function KeySetupPage() {
 
             {recoveryKey && (
               <div className="recovery-box p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-left space-y-3">
-                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-semibold text-sm">
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold text-sm">
                   <Icon name="shield" size={18} />
-                  <span>YOUR NEW RECOVERY KEY</span>
+                  <span>IMPORTANT: SAVE YOUR RECOVERY KEY</span>
                 </div>
 
-                <p className="text-xs text-muted">
-                  Save this key in a secure place right now. You will need it to
-                  unlock your messages on new devices.
-                </p>
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-600 dark:text-red-400 font-medium leading-relaxed">
+                  ⚠️ <strong>CRITICAL WARNING:</strong> Copy and store this key
+                  in a secure location! If you log in on a new device or clear
+                  browser cache,{" "}
+                  <strong>
+                    this key is required to read your chat history
+                  </strong>
+                  . If lost, your old messages can NEVER be recovered.
+                </div>
 
                 <div className="p-3 bg-black/10 dark:bg-black/40 rounded-lg text-center font-mono tracking-widest text-lg font-bold select-all text-amber-600 dark:text-amber-300">
                   {recoveryKey}
@@ -387,7 +338,7 @@ export default function KeySetupPage() {
                     className="flex-1 py-2 px-3 text-xs font-semibold rounded-lg bg-surface border border-border hover:bg-surface-hover flex items-center justify-center gap-2 transition-colors"
                   >
                     <Icon name={copied ? "check" : "copy"} size={15} />
-                    {copied ? "Copied" : "Copy Key"}
+                    {copied ? "Copied to Clipboard" : "Copy Key"}
                   </button>
 
                   <button
@@ -403,7 +354,7 @@ export default function KeySetupPage() {
             )}
 
             <Button
-              onClick={() => navigate("/dashboard")}
+              onClick={handleFinishSetup}
               iconRight="arrowRight"
               className="w-full mt-4"
             >
