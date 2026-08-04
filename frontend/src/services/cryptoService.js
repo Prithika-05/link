@@ -48,24 +48,20 @@ function base64ToBytes(value) {
   const binary = window.atob(value);
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
+
 function parsePublicKey(serializedKey) {
   try {
     return JSON.parse(serializedKey);
   } catch (error) {
-    console.log("JSON parse failed:", error);
-
     try {
       return JSON.parse(new TextDecoder().decode(base64ToBytes(serializedKey)));
-    } catch (error) {
-      console.log("Base64 parse failed:", error);
-      throw new Error(
-        "The public key format is not supported by this frontend.",
-      );
+    } catch {
+      throw new Error("The public key format is not supported.");
     }
   }
 }
 
-async function fingerprintPublicKey(serializedKey) {
+export async function fingerprintPublicKey(serializedKey) {
   const digest = await window.crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(serializedKey),
@@ -86,6 +82,9 @@ async function importPublicKey(serializedKey) {
   );
 }
 
+/**
+ * Standard ECDH AES Key Derivation
+ */
 async function deriveAesKey(privateKey, publicKey) {
   const sharedSecret = await window.crypto.subtle.deriveBits(
     { name: "ECDH", public: publicKey },
@@ -108,9 +107,7 @@ function buildAdditionalData(senderId, receiverId) {
 
 export async function createKeyPairMaterial(publicId) {
   if (!window.crypto?.subtle || !window.indexedDB) {
-    throw new Error(
-      "This browser does not support the required Web Crypto APIs.",
-    );
+    throw new Error("This browser does not support Web Crypto APIs.");
   }
 
   const generatedPair = await window.crypto.subtle.generateKey(
@@ -140,8 +137,7 @@ export async function createKeyPairMaterial(publicId) {
   const serializedPublicKey = JSON.stringify(publicJwk);
   const fingerprint = await fingerprintPublicKey(serializedPublicKey);
 
-  // 2. Add privateKeyJwk to the returned record!
-  const record = {
+  return {
     publicId,
     algorithm: ALGORITHM,
     privateKey,
@@ -150,8 +146,6 @@ export async function createKeyPairMaterial(publicId) {
     fingerprint,
     createdAt: new Date().toISOString(),
   };
-
-  return record;
 }
 
 export async function storeKeyPair(record) {
@@ -176,20 +170,28 @@ export async function removeStoredKeyPair(publicId) {
   return runStore("readwrite", (store) => store.delete(publicId));
 }
 
+/**
+ * ENCRYPT: Uses a fresh EPHEMERAL ECDH key pair per message (Forward Secrecy)
+ */
 export async function encryptMessage({
   senderPublicId,
   receiverPublicId,
   receiverPublicKey,
   plaintext,
 }) {
-  const ownKeyPair = await getStoredKeyPair(senderPublicId);
-  if (!ownKeyPair?.privateKey) {
-    throw new Error("Your private key is missing on this device.");
-  }
+  // 1. Generate a single-use ephemeral key pair for this outgoing message
+  const ephemeralPair = await window.crypto.subtle.generateKey(
+    { name: "ECDH", namedCurve: CURVE },
+    true,
+    ["deriveBits"],
+  );
 
   const recipientKey = await importPublicKey(receiverPublicKey);
-  const aesKey = await deriveAesKey(ownKeyPair.privateKey, recipientKey);
+
+  // 2. Derive AES key using ephemeral private key + recipient static public key
+  const aesKey = await deriveAesKey(ephemeralPair.privateKey, recipientKey);
   const iv = window.crypto.getRandomValues(new Uint8Array(12));
+
   const encryptedBuffer = await window.crypto.subtle.encrypt(
     {
       name: "AES-GCM",
@@ -205,14 +207,23 @@ export async function encryptMessage({
   const ciphertext = encryptedBytes.slice(0, -AUTH_TAG_BYTES);
   const authTag = encryptedBytes.slice(-AUTH_TAG_BYTES);
 
+  // 3. Export ephemeral public key to transmit with payload
+  const ephemeralPublicJwk = await window.crypto.subtle.exportKey(
+    "jwk",
+    ephemeralPair.publicKey,
+  );
+
   return {
     ciphertext: bytesToBase64(ciphertext),
     iv: bytesToBase64(iv),
     authTag: bytesToBase64(authTag),
-    ephemeralPublicKey: ownKeyPair.publicKey,
+    ephemeralPublicKey: JSON.stringify(ephemeralPublicJwk), // Single-use key sent to recipient
   };
 }
 
+/**
+ * DECRYPT: Ephemeral-Static ECDH for incoming messages
+ */
 export async function decryptMessage({
   currentUserPublicId,
   counterpartyPublicKey,
@@ -222,36 +233,39 @@ export async function decryptMessage({
   if (!ownKeyPair?.privateKey) {
     throw new Error("Your private key is missing on this device.");
   }
-  console.log({
-    currentUserPublicId,
-    counterpartyPublicKey,
-    senderPublicId: message.senderPublicId,
-    receiverPublicId: message.receiverPublicId,
-  });
 
-  const otherPublicKey = await importPublicKey(counterpartyPublicKey);
-  const aesKey = await deriveAesKey(ownKeyPair.privateKey, otherPublicKey);
+  // Use ephemeral key attached to incoming message, or fallback to static key
+  const publicKeyToImport = message.ephemeralPublicKey || counterpartyPublicKey;
+  const importedKey = await importPublicKey(publicKeyToImport);
+  const aesKey = await deriveAesKey(ownKeyPair.privateKey, importedKey);
+
   const ciphertext = base64ToBytes(message.ciphertext);
   const authTag = base64ToBytes(message.authTag);
+
   const combined = new Uint8Array(ciphertext.length + authTag.length);
   combined.set(ciphertext);
   combined.set(authTag, ciphertext.length);
 
-  const decrypted = await window.crypto.subtle.decrypt(
-    {
-      name: "AES-GCM",
-      iv: base64ToBytes(message.iv),
-      additionalData: buildAdditionalData(
-        message.senderPublicId,
-        message.receiverPublicId,
-      ),
-      tagLength: 128,
-    },
-    aesKey,
-    combined,
-  );
+  try {
+    const decrypted = await window.crypto.subtle.decrypt(
+      {
+        name: "AES-GCM",
+        iv: base64ToBytes(message.iv),
+        additionalData: buildAdditionalData(
+          message.senderPublicId,
+          message.receiverPublicId,
+        ),
+        tagLength: 128,
+      },
+      aesKey,
+      combined,
+    );
 
-  return new TextDecoder().decode(decrypted);
+    return new TextDecoder().decode(decrypted);
+  } catch (err) {
+    console.error("Decryption failed for message:", message.id, err);
+    throw new Error("Unable to decrypt this message.");
+  }
 }
 
 export function formatFingerprint(fingerprint, groups = 8) {
@@ -261,11 +275,7 @@ export function formatFingerprint(fingerprint, groups = 8) {
     .match(new RegExp(`.{1,${groups}}`, "g"))
     ?.join(" ");
 }
-// Add to src/services/cryptoService.js
 
-/**
- * Generate a 24-character human-readable recovery key (e.g. LKCH-8F92-1A3B-4C5D-6E7F-8A9B)
- */
 export function generateRecoveryKey() {
   const bytes = crypto.getRandomValues(new Uint8Array(12));
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0"))
@@ -276,11 +286,10 @@ export function generateRecoveryKey() {
 }
 
 /**
- * Derive an AES-GCM-256 key from a recovery key phrase using high-iteration PBKDF2 (OWASP recommended 600,000 rounds)
+ * High-iteration PBKDF2 Key Derivation (600,000 rounds per OWASP guidelines)
  */
 async function deriveBackupKey(recoveryKey, salt) {
   const encoder = new TextEncoder();
-  // Normalize user input: remove all whitespace/hyphens and convert to uppercase
   const normalizedKey = recoveryKey.trim().replace(/[\s-]/g, "").toUpperCase();
 
   const keyMaterial = await crypto.subtle.importKey(
@@ -305,9 +314,6 @@ async function deriveBackupKey(recoveryKey, salt) {
   );
 }
 
-/**
- * Encrypt private key JWK with Recovery Key for backend backup storage
- */
 export async function encryptPrivateKeyWithRecoveryKey(
   privateKeyJwk,
   recoveryKey,
@@ -316,17 +322,15 @@ export async function encryptPrivateKeyWithRecoveryKey(
     throw new Error("Cannot backup private key: JWK material is missing.");
   }
 
-  // Increased salt length from 16 to 32 bytes for maximum entropy
   const salt = crypto.getRandomValues(new Uint8Array(32));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const aesKey = await deriveBackupKey(recoveryKey, salt);
 
   const jsonString = JSON.stringify(privateKeyJwk);
-  const encoder = new TextEncoder();
-  const plaintextData = encoder.encode(jsonString);
+  const plaintextData = new TextEncoder().encode(jsonString);
 
   const ciphertextBuffer = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv, tagLength: 128 },
     aesKey,
     plaintextData,
   );
@@ -340,9 +344,6 @@ export async function encryptPrivateKeyWithRecoveryKey(
   };
 }
 
-/**
- * Decrypt private key JWK using Recovery Key during restoration
- */
 export async function decryptPrivateKeyWithRecoveryKey(
   backupData,
   recoveryKey,
@@ -357,13 +358,12 @@ export async function decryptPrivateKeyWithRecoveryKey(
   const ivBytes = base64ToBytes(iv);
   const ciphertextBytes = base64ToBytes(encryptedPrivateKey);
 
-  // Derive AES Key using the 600,000 iterations key derivation
   const aesKey = await deriveBackupKey(recoveryKey, saltBytes);
 
   let decryptedBuffer;
   try {
     decryptedBuffer = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: ivBytes },
+      { name: "AES-GCM", iv: ivBytes, tagLength: 128 },
       aesKey,
       ciphertextBytes,
     );
@@ -372,13 +372,7 @@ export async function decryptPrivateKeyWithRecoveryKey(
     throw new Error("Invalid Recovery Key phrase.");
   }
 
-  const decoder = new TextDecoder();
-  const jsonString = decoder.decode(decryptedBuffer);
-
-  if (!jsonString) {
-    throw new Error("Decrypted payload was empty.");
-  }
-
+  const jsonString = new TextDecoder().decode(decryptedBuffer);
   return JSON.parse(jsonString);
 }
 

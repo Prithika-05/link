@@ -7,6 +7,10 @@ import {
 import { keyService } from "../../../services/keyService.js";
 import { messageService } from "../../../services/messageService.js";
 import { socketService } from "../../../services/socketService.js";
+import {
+  saveLocalMessage,
+  getLocalMessagesForContact,
+} from "../../../services/messageStorage.js";
 
 async function decryptConversationMessage(message, currentUserPublicId) {
   const isOutgoing = message.senderPublicId === currentUserPublicId;
@@ -16,14 +20,11 @@ async function decryptConversationMessage(message, currentUserPublicId) {
 
   let counterpartyPublicKey = message.ephemeralPublicKey;
 
-  // If this is an outgoing message sent by the current user,
-  // we must derive the secret using the RECIPIENT'S public key!
   if (isOutgoing) {
     try {
       const recipientKeyObj = await keyService.getPublicKey(targetPublicId);
       counterpartyPublicKey = recipientKeyObj.key;
     } catch {
-      // Fallback to ephemeralPublicKey if fetch fails
       counterpartyPublicKey = message.ephemeralPublicKey;
     }
   }
@@ -53,36 +54,63 @@ export const loadConversation = createAsyncThunk(
     { getState, rejectWithValue },
   ) => {
     const currentUserPublicId = getState().auth.user?.publicId;
-    const contacts = getState().contacts.items || [];
-
-    // Find when this contact was added to User A's verified contacts
-    const currentContact = contacts.find((c) => c.publicId === contactId);
-    const addedAtTimestamp = currentContact?.addedAt
-      ? new Date(currentContact.addedAt).getTime()
-      : 0;
 
     try {
+      // 1. Fetch locally stored messages (includes outgoing plaintext & decrypted incoming)
+      const localMessages = await getLocalMessagesForContact(
+        currentUserPublicId,
+        contactId,
+      );
+
+      // 2. Fetch server conversation history
       const conversation = await messageService.getConversation(contactId, {
         page,
         limit,
       });
 
-      // 1. Filter out messages created BEFORE the contact was re-added
-      const relevantMessages = conversation.messages.filter((msg) => {
-        const msgTime = new Date(msg.createdAt).getTime();
-        return msgTime >= addedAtTimestamp;
-      });
+      const serverMessages = conversation.messages || [];
+      const mergedList = [];
 
-      // 2. Decrypt only the relevant messages
-      const messages = await Promise.all(
-        relevantMessages.map((message) =>
-          decryptConversationMessage(message, currentUserPublicId),
-        ),
-      );
+      // 3. Process server records against local store
+      for (const msg of serverMessages) {
+        const isOutgoing = msg.senderPublicId === currentUserPublicId;
+        const localMatch = localMessages.find((m) => m.id === msg.id);
+
+        if (localMatch) {
+          mergedList.push(localMatch);
+          continue;
+        }
+
+        if (isOutgoing) {
+          // Outgoing message missing locally (e.g. sent from a different browser)
+          mergedList.push({
+            ...msg,
+            text: "[Sent from another device - Ephemeral Key Discarded]",
+            decryptionFailed: true,
+          });
+          continue;
+        }
+
+        // Decrypt incoming message & save to IndexedDB
+        try {
+          const decrypted = await decryptConversationMessage(
+            msg,
+            currentUserPublicId,
+          );
+          await saveLocalMessage(currentUserPublicId, contactId, decrypted);
+          mergedList.push(decrypted);
+        } catch {
+          mergedList.push({
+            ...msg,
+            text: "Unable to decrypt this message.",
+            decryptionFailed: true,
+          });
+        }
+      }
 
       return {
         contactId,
-        messages,
+        messages: mergedList,
         pagination: conversation.pagination,
       };
     } catch (error) {
@@ -140,7 +168,6 @@ export const sendEncryptedMessage = createAsyncThunk(
       let response;
       let transport = "socket";
 
-      // Check if socket is connected before trying
       if (socketService.isConnected()) {
         try {
           response = await socketService.sendMessage(socketPayload);
@@ -155,12 +182,11 @@ export const sendEncryptedMessage = createAsyncThunk(
         transport = "rest";
       }
 
-      // If socket failed or was disconnected, send via REST API with a BRAND NEW messageId and nonce
       if (transport === "rest") {
         const restPayload = {
-          messageId: crypto.randomUUID(), // Brand new ID
+          messageId: crypto.randomUUID(),
           timestamp: Date.now(),
-          nonce: generateNonce(), // Brand new Nonce
+          nonce: generateNonce(),
           receiverPublicId: targetPublicId,
           ...encryptedPayload,
         };
@@ -168,7 +194,6 @@ export const sendEncryptedMessage = createAsyncThunk(
         try {
           response = await messageService.sendMessage(restPayload);
         } catch (restError) {
-          // If REST API fails with duplicate, it means socket actually succeeded in the background!
           const errorMsg = getApiErrorMessage(restError, "");
           if (errorMsg.includes("Duplicate message detected")) {
             console.info("Message was already processed via socket.");
@@ -178,20 +203,29 @@ export const sendEncryptedMessage = createAsyncThunk(
         }
       }
 
+      const finalMessage = {
+        id:
+          response?.id ||
+          response?.data?.id ||
+          response?.data?.messageId ||
+          initialMessageId,
+        senderPublicId: currentUserPublicId,
+        receiverPublicId: targetPublicId,
+        ...encryptedPayload,
+        text,
+        status: "SENT",
+        type: "TEXT",
+        createdAt: new Date().toISOString(),
+        decryptionFailed: false,
+      };
+
+      // Save plaintext copy to local IndexedDB
+      await saveLocalMessage(currentUserPublicId, targetPublicId, finalMessage);
+
       return {
         contactId: targetPublicId,
         transport,
-        message: {
-          id: response?.data?.messageId || initialMessageId,
-          senderPublicId: currentUserPublicId,
-          receiverPublicId: targetPublicId,
-          ...encryptedPayload,
-          text,
-          status: "SENT",
-          type: "TEXT",
-          createdAt: new Date().toISOString(),
-          decryptionFailed: false,
-        },
+        message: finalMessage,
       };
     } catch (error) {
       return rejectWithValue({
@@ -214,15 +248,24 @@ export const decryptRealtimeMessage = createAsyncThunk(
         message,
       });
 
+      const decryptedMsg = {
+        ...message,
+        text,
+        status: message.status || "SENT",
+        type: message.type || "TEXT",
+        decryptionFailed: false,
+      };
+
+      // Save real-time incoming message to local IndexedDB
+      await saveLocalMessage(
+        currentUserPublicId,
+        message.senderPublicId,
+        decryptedMsg,
+      );
+
       return {
         contactId: message.senderPublicId,
-        message: {
-          ...message,
-          text,
-          status: message.status || "SENT",
-          type: message.type || "TEXT",
-          decryptionFailed: false,
-        },
+        message: decryptedMsg,
       };
     } catch {
       return rejectWithValue({
