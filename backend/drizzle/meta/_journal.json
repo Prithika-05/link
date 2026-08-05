@@ -1,48 +1,5 @@
 {
   "version": "7",
   "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1785127251161,
-      "tag": "0000_material_hex",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1785134253146,
-      "tag": "0001_wealthy_mojo",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1785172504416,
-      "tag": "0002_clear_whistler",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1785172661262,
-      "tag": "0003_foamy_amazoness",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1785223193789,
-      "tag": "0004_public_norrin_radd",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1785675402744,
-      "tag": "0005_tiresome_mandarin",
-      "breakpoints": true
-    }
-  ]
+  "entries": []
 }

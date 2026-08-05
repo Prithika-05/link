@@ -1,1 +1,0 @@
-ALTER TABLE "User" ALTER COLUMN "displayName" SET NOT NULL;

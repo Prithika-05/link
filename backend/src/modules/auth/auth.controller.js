@@ -13,18 +13,10 @@ export class AuthController {
 
     return {
       ipAddress: request.ip,
-
-      userAgent:
-        request.headers['user-agent'] ?? null,
-
-      deviceName:
-        body.deviceName ?? null,
-
-      platform:
-        body.platform ?? null,
-
-      browser:
-        body.browser ?? null,
+      userAgent: request.headers['user-agent'] ?? null,
+      deviceName: body.deviceName ?? null,
+      platform: body.platform ?? null,
+      browser: body.browser ?? null,
     };
   }
 
@@ -32,135 +24,131 @@ export class AuthController {
    * Register a new user.
    */
   register = async (request, reply) => {
-    const result =
-      await this.authService.register(
-        request.body
-      );
+    try {
+      const result = await this.authService.register(request.body);
 
-    return successResponse(
-      reply,
-      result.user,
-      result.message,
-      201
-    );
+      return successResponse(
+        reply,
+        result.user,
+        result.message,
+        201
+      );
+    } catch (error) {
+      // Passes the specific validation/database error down to Fastify's handler
+      throw error; 
+    }
   };
 
   /**
    * Login.
    */
   login = async (request, reply) => {
-    const result =
-      await this.authService.login(
+    try {
+      const result = await this.authService.login(
         request.body,
         this.getSessionInfo(request)
       );
 
-    return successResponse(
-      reply,
-      result,
-      'Login successful.'
-    );
+      return successResponse(
+        reply,
+        result,
+        'Login successful.'
+      );
+    }catch (error) {
+  request.log.error(error);
+
+  console.error(error);
+
+  throw error;
+}
   };
 
   /**
    * Refresh authentication tokens.
    */
   refresh = async (request, reply) => {
-    const { refreshToken } = request.body;
+    try {
+      const { refreshToken } = request.body;
 
-    const result =
-      await this.authService.refresh(
+      const result = await this.authService.refresh(
         refreshToken,
         this.getSessionInfo(request)
       );
 
-    return successResponse(
-      reply,
-      result,
-      'Tokens refreshed successfully.'
-    );
+      return successResponse(
+        reply,
+        result,
+        'Tokens refreshed successfully.'
+      );
+    } catch (error) {
+      const statusCode = error.statusCode || 401;
+      return reply.code(statusCode).send({
+        success: false,
+        error: {
+          code: 'REFRESH_TOKEN_INVALID',
+          message: error.message || 'Session expired or invalid refresh token.'
+        }
+      });
+    }
   };
 
   /**
    * Logout current session.
    */
   logout = async (request, reply) => {
-    const authHeader =
-      request.headers.authorization ?? '';
+    try {
+      const authHeader = request.headers.authorization ?? '';
+      const accessToken = authHeader.replace(/^Bearer\s+/i, '');
+      const { refreshToken } = request.body ?? {};
 
-    const accessToken = authHeader.replace(
-      /^Bearer\s+/i,
-      ''
-    );
+      await this.authService.logout(
+        accessToken,
+        refreshToken,
+        this.getSessionInfo(request)
+      );
 
-    const { refreshToken } =
-      request.body ?? {};
-
-    await this.authService.logout(
-      accessToken,
-      refreshToken,
-      this.getSessionInfo(request)
-    );
-
-    return successResponse(
-      reply,
-      null,
-      'Logged out successfully.'
-    );
+      return successResponse(reply, null, 'Logged out successfully.');
+    } catch (error) {
+      throw error;
+    }
   };
 
   /**
    * List active device sessions.
    */
   getSessions = async (request, reply) => {
-    const sessions =
-      await this.authService.getSessions(
-        request.user.sub
-      );
-
-    return successResponse(
-      reply,
-      sessions,
-      'Device sessions retrieved successfully.'
-    );
+    try {
+      const sessions = await this.authService.getSessions(request.user.sub);
+      return successResponse(reply, sessions, 'Device sessions retrieved successfully.');
+    } catch (error) {
+      throw error;
+    }
   };
 
   /**
    * Revoke one device session.
    */
-  revokeSession = async (
-    request,
-    reply
-  ) => {
-    const result =
-      await this.authService.revokeSession(
+  revokeSession = async (request, reply) => {
+    try {
+      const result = await this.authService.revokeSession(
         request.user.sub,
         request.params.sessionId
       );
-
-    return successResponse(
-      reply,
-      null,
-      result.message
-    );
+      return successResponse(reply, null, result.message);
+    } catch (error) {
+      throw error;
+    }
   };
 
   /**
    * Revoke all device sessions.
    */
-  revokeAllSessions = async (
-    request,
-    reply
-  ) => {
-    const result =
-      await this.authService.revokeAllSessions(
-        request.user.sub
-      );
-
-    return successResponse(
-      reply,
-      null,
-      result.message
-    );
+  revokeAllSessions = async (request, reply) => {
+    try {
+      const result = await this.authService.revokeAllSessions(request.user.sub);
+      return successResponse(reply, null, result.message);
+    } catch (error) {
+      throw error;
+    }
   };
 }

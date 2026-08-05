@@ -1,22 +1,18 @@
 // src/plugins/rate-limit.js
+import fp from "fastify-plugin";
+import fastifyRateLimit from "@fastify/rate-limit";
 
-import fp from 'fastify-plugin';
-import fastifyRateLimit from '@fastify/rate-limit';
-
-/**
- * Fastify Rate Limit plugin.
- *
- * @param {import('fastify').FastifyInstance} fastify
- */
 async function rateLimitPlugin(fastify) {
   await fastify.register(fastifyRateLimit, {
+    global: true,
+    max: 16,
+    timeWindow: "1 minute",
 
-    global: false,
-    max: 50,
-    timeWindow: '1 minute',
-
-    allowList() {
-      return false;
+    keyGenerator: (request) => {
+      if (request.headers.authorization) {
+        return request.headers.authorization;
+      }
+      return request.ip;
     },
 
     errorResponseBuilder(request, context) {
