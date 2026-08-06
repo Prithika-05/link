@@ -218,7 +218,7 @@ export class UsersService {
     const pagination = getPagination(page, limit);
 
     const searchCondition = and(
-      or(ilike(users.username, `%${query}%`), ilike(users.email, `%${query}%`)),
+      or(ilike(users.username, `%${query}%`)),
       ne(users.id, currentUserId),
     );
 
@@ -232,9 +232,6 @@ export class UsersService {
           publicId: true,
           username: true,
           displayName: true,
-          email: true,
-          avatarUrl: true,
-          status: true,
         },
       }),
 

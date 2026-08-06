@@ -61,6 +61,23 @@ const userSchema = {
   },
 };
 
+/* Isolated schema for secure public search results */
+const publicSearchUserSchema = {
+  type: "object",
+  required: ["publicId", "username"],
+  properties: {
+    publicId: {
+      type: "string",
+    },
+    username: {
+      type: "string",
+    },
+    displayName: {
+      type: "string",
+    },
+  },
+};
+
 /* Current User */
 export const getCurrentUserSchema = {
   summary: "Get authenticated user profile",
@@ -237,7 +254,7 @@ export const searchUsersSchema = {
           properties: {
             users: {
               type: "array",
-              items: userSchema,
+              items: publicSearchUserSchema,
             },
             pagination: { type: "object" },
           },
@@ -246,3 +263,4 @@ export const searchUsersSchema = {
     },
   },
 };
+  
